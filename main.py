@@ -16,13 +16,14 @@ class MyBot(d.Client):
                           'Ohayou', 'Yahallo']
         self.when_approached = ['Ja, was ist?', 'Ja?', 'Hm?', 'Was los', 'Zu Diensten!', 'Jo?', 'Hier', 'Was\'n?',
                                 'Schon da', 'Ich hör dir zu', 'So heiß ich']
+        self.spam_done = ['So, genug gespammt!', 'Genug jetzt!', 'Das reicht jetzt aber wieder mal.', 'Und Schluss', 'Owari desu', 'Habe fertig']
         super().__init__()  # superclass discord.Client needs to be properly initialized as well
 
-
+    # executes when bot setup is finished
     async def on_ready(self):
         print('Logged on as {0}!'.format(self.user))
 
-
+    # executes when a new message is detected in any channel
     async def on_message(self, message):
         print('Message from {0.author}: {0.content}'.format(message))
 
@@ -43,7 +44,7 @@ class MyBot(d.Client):
             response = await self.react_to_name(message)
             await message.channel.send(response)
 
-
+    # defines reaction to when a user message includes the bot's name (content of self.name)
     async def react_to_name(self, msg: d.message) -> str:
         # check if there is a greeting inside the message
         for word in self.greetings:
@@ -61,15 +62,18 @@ class MyBot(d.Client):
         await msg.channel.send(response)
 
 
-    @staticmethod
     async def spam(self, msg: d.message):
         words = msg.content.split()[1:]
         number = int(next(filter(lambda word: word.isnumeric(), words), 0))
         for i in range(number):
-            # async with msg.channel.typing():
-            #     if i > 0 and i % 5 == 0:
-            #         await asyncio.sleep(1)
-            await msg.channel.send(i+1)
+            await msg.channel.send(i + 1)
+            # after every five messages, run the typing animation, as the bot has to wait until the HTTP-POST rate limit bucket has refilled
+            if (i+1) % 5 == 0:
+                async with msg.channel.typing():
+                    pass
+        # end the spam with an assertive message
+        await msg.channel.send(random.choice(self.spam_done), delete_after=5.0)
+
 
 
     async def delete(self, msg: d.message):
@@ -112,6 +116,8 @@ class MyBot(d.Client):
     async def not_found(self, msg: d.message):
         await msg.channel.send(f'Dieses Kommando kennt {self.name} leider nicht :/')
 
+
+    # dictionary to map respective function to command
     execute_command = {
         '.delete': delete,
         '.wake': approaches,
