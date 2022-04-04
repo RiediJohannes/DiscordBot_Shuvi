@@ -56,26 +56,33 @@ class MyBot(d.Client):
 
 
     async def delete(self, msg: d.message):
-        # split message text into each word and only take everything after the command
+        # split message text into each word (deliminator: ' ') and only take everything after the command
         words = msg.content.split()[1:]
         # text = ' '.join(words)
-        number = int(next(filter(lambda word: word.isnumeric(), words), 0))
-        number += 3     # we also want the messages of the .delete call to disappear
-        if number > 100: number = 100   # 100 is the upper deletion limit set by discord's API
 
-        # inner function to handle user response
+        # check for option flags
+        flags = filter(lambda word: word.startswith('-'), words)
+
+        # inner function to handle user response (confirm/abort deletion)
         async def execute_deletion():
+            number = int(next(filter(lambda word: word.isnumeric(), words), 0))  # search for first number within the text 'words'
+            number += 3  # we also want the messages of the .delete call to disappear at the end
+            remaining = number
+
             try:
                 await msg.channel.send(f'{self.name} würde nun {number-3} Nachrichten löschen. Fortsetzen? (y/n)')
                 answer = await self.wait_for("message", check=lambda ans: ans.author == msg.author and ans.channel == msg.channel, timeout=30.0)
             except asyncio.TimeoutError:
                 await msg.channel.send(f'Hm, da kommt ja doch nichts mehr... _[Löschen abgebrochen]_')
             else:
-                if answer.content.casefold() in ['yes', 'y', 'ja', 'jo', 'j']:
-                    trashcan = await msg.channel.history(limit=number).flatten()
-                    await msg.channel.delete_messages(trashcan)
+                if answer.content.casefold() in ['yes', 'y', 'ja', 'jo', 'j', 'hai']:
+                    while remaining > 0:
+                        deletion_stack = remaining if remaining <= 100 else 100  # 100 is the upper deletion limit set by discord's API
+                        trashcan = await msg.channel.history(limit=deletion_stack).flatten()
+                        await msg.channel.delete_messages(trashcan)
+                        remaining -= deletion_stack
                     await msg.channel.send(f'{number-3} Nachrichten gelöscht', delete_after=5.0)
-                elif answer.content.casefold() in ['no', 'n', 'nein', 'na', 'nö', 'nope', 'stop', 'cancel']:
+                elif answer.content.casefold() in ['no', 'n', 'nein', 'na', 'nö', 'nope', 'stop', 'cancel', 'iie']:
                     await msg.channel.send(f'Ist gut, {self.name} löscht nichts')
                 else:
                     await msg.channel.send(f'Das beantwortet nicht {self.name}\'s Frage')
@@ -92,7 +99,7 @@ class MyBot(d.Client):
 
     execute_command = {
         '.delete': delete,
-        '.ap': approaches,
+        '.wake': approaches,
         'not_found': not_found,
         # every function with entry in this dict must have 'self' parameter to work in execute_command call
     }
