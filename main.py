@@ -55,13 +55,31 @@ class MyBot(d.Client):
         return random.choice(reactions)
 
 
+    # separate function (to greet or react on approach) to be called on .wake command.
+    async def approaches(self, msg: d.message):
+        response = await self.react_to_name(msg)
+        await msg.channel.send(response)
+
+
+    @staticmethod
+    async def spam(self, msg: d.message):
+        words = msg.content.split()[1:]
+        number = int(next(filter(lambda word: word.isnumeric(), words), 0))
+        for i in range(number):
+            # async with msg.channel.typing():
+            #     if i > 0 and i % 5 == 0:
+            #         await asyncio.sleep(1)
+            await msg.channel.send(i+1)
+
+
     async def delete(self, msg: d.message):
         # split message text into each word (deliminator: ' ') and only take everything after the command
         words = msg.content.split()[1:]
         # text = ' '.join(words)
 
         # check for option flags
-        flags = filter(lambda word: word.startswith('-'), words)
+        flags = list(filter(lambda word: word.startswith('-'), words))
+        # author's note: Falls wir später die flags abfragen wollen, empfiehlt sich ein check "if flags:", um zu schauen, ob die Liste leer ist
 
         # inner function to handle user response (confirm/abort deletion)
         async def execute_deletion():
@@ -90,16 +108,14 @@ class MyBot(d.Client):
         await execute_deletion()
 
 
-    async def approaches(self, msg: d.message):
-        await msg.channel.send(self.when_approached)
-
-    @staticmethod  # this is only static so that the compiler shuts up at the execute_command call above
+    @staticmethod  # this is only static so that the compiler shuts up at the execute_command()-call above
     async def not_found(self, msg: d.message):
         await msg.channel.send(f'Dieses Kommando kennt {self.name} leider nicht :/')
 
     execute_command = {
         '.delete': delete,
         '.wake': approaches,
+        '.spam': spam,
         'not_found': not_found,
         # every function with entry in this dict must have 'self' parameter to work in execute_command call
     }
