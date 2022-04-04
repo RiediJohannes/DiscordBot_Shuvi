@@ -62,9 +62,12 @@ class MyBot(d.Client):
         await msg.channel.send(response)
 
 
+    # spams the channel with messages counting up to the number given as a parameter
     async def spam(self, msg: d.message):
         words = msg.content.split()[1:]
         number = int(next(filter(lambda word: word.isnumeric(), words), 0))
+        if not number:
+            return await msg.channel.send("Eine Zahl wäre schön")
         for i in range(number):
             await msg.channel.send(i + 1)
             # after every five messages, run the typing animation, as the bot has to wait until the HTTP-POST rate limit bucket has refilled
@@ -73,7 +76,6 @@ class MyBot(d.Client):
                     pass
         # end the spam with an assertive message
         await msg.channel.send(random.choice(self.spam_done), delete_after=5.0)
-
 
 
     async def delete(self, msg: d.message):
