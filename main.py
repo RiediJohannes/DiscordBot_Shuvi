@@ -1,4 +1,5 @@
 import asyncio
+import asyncpg
 import random
 
 import discord as d
@@ -7,11 +8,32 @@ import os
 
 logging.basicConfig(level=logging.INFO)
 
+async def startup():
+
+    database_connection = await asyncpg.create_pool(os.environ.get("DATABASE_URL", None))
+    bot = MyBot("Shuvi", database_connection)
+
+    try:
+        # Example create table code, you'll probably change it to suit you
+        # await db.execute("CREATE TABLE IF NOT EXISTS users(id bigint PRIMARY KEY, data text);")
+        # await db.execute("INSERT INTO users VALUES(1, 'Manuel')")
+
+        # name = await db.fetchrow("SELECT data FROM kolleg WHERE id = 0")
+        # print(name)
+
+        # run bot via its private token
+        await bot.start(os.environ['DISCORD_TOKEN'])
+
+    except KeyboardInterrupt:
+        await database_connection.close()
+        await bot.logout()
+
 
 class MyBot(d.Client):
 
-    def __init__(self, name="Bot"):
+    def __init__(self, name="Bot", db=None):
         self.name = name
+        self.db = db
         self.greetings = ['Hallo', 'Hey', 'Hi', 'Hoi', 'Servus', 'Moin', 'Zeawas', 'Seawas', 'Heile', 'Grüezi',
                           'Ohayou', 'Yahallo']
         self.when_approached = ['Ja, was ist?', 'Ja?', 'Hm?', 'Was los', 'Zu Diensten!', 'Jo?', 'Hier', 'Was\'n?',
@@ -78,6 +100,7 @@ class MyBot(d.Client):
         await msg.channel.send(random.choice(self.spam_done), delete_after=5.0)
 
 
+    # deletes a requested number of messages in the same channel (starting from the most recent message)
     async def delete(self, msg: d.message):
         # split message text into each word (deliminator: ' ') and only take everything after the command
         words = msg.content.split()[1:]
@@ -129,8 +152,5 @@ class MyBot(d.Client):
     }
 
 
-bot = MyBot("Shuvi")
-print('Mein Token: ' + os.environ['DISCORD_TOKEN'])
-
-# private token for my bot
-bot.run(os.environ['DISCORD_TOKEN'])
+loop = asyncio.get_event_loop()
+loop.run_until_complete(startup())
