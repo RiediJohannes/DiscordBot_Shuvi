@@ -1,6 +1,6 @@
 import discord as d
 import re
-import datetime
+from datetime import datetime
 
 class TimeHandler:
 
@@ -13,8 +13,21 @@ class TimeHandler:
     def get_timestamp(self, msg: d.message):
 
         # read date and time in message
-        date = re.search(self.date_pattern, msg.content).group()
-        time = re.search(self.time_pattern, msg.content).group()
-        memo = re.search(self.memo_pattern, msg.content).group()
+        date_str = re.search(self.date_pattern, msg.content).group()
+        time_str = re.search(self.time_pattern, msg.content).group()
 
-        return date, time, memo
+        # if the user used '/' or '-' as a date delimiter, replace it with '.'
+        date_str = date_str.replace('/', '.')
+        date_str = date_str.replace('-', '.')
+
+        # special case if year was given as two digits instead of four
+        if len(date_str.split('.')[2]) == 2:
+            timestamp = datetime.strptime(date_str + ' ' + time_str, '%d.%m.%y %H:%M')
+        else:
+            timestamp = datetime.strptime(date_str + ' ' + time_str, '%d.%m.%Y %H:%M')
+
+        return timestamp
+
+
+    def get_memo(self, msg: d.message):
+        return re.search(self.memo_pattern, msg.content).group()

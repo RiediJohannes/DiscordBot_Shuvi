@@ -8,6 +8,7 @@ import os
 
 from TimeHandler import TimeHandler
 
+
 logging.basicConfig(level=logging.INFO)
 
 async def startup():
@@ -139,8 +140,12 @@ class MyBot(d.Client):
         # check for option flags
         flags = list(filter(lambda word: word.startswith('-'), words))
 
-        remind_time = TimeHandler()
-        date, time, memo = remind_time.get_timestamp(msg)
+        reminder_filter = TimeHandler()
+        timestamp = reminder_filter.get_timestamp(msg)
+        memo = reminder_filter.get_memo(msg)
+
+        date = timestamp.date().strftime('%d.%m.%Y')    # get the date in standardized format (dd.mm.yyyy)
+        time = timestamp.time().isoformat(timespec='minutes')   # get the time in standardized format (hh:mm)
 
         user = msg.author
         # create an entry for the sender in the users() relation if there isn't one already
@@ -151,7 +156,7 @@ class MyBot(d.Client):
         """)
 
         await msg.channel.send(f'Reminder für <@!{user.id}> am **{date}** um **{time}** mit dem Text:\n_{memo}_')
-
+        await msg.channel.send(f'Timestamp: {timestamp}')
 
         # name = await db.fetchrow("SELECT data FROM kolleg WHERE id = 0")
         # print(name)
