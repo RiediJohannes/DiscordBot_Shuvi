@@ -5,7 +5,8 @@ import random
 import discord as d
 import logging
 import os
-import re
+
+from TimeHandler import TimeHandler
 
 logging.basicConfig(level=logging.INFO)
 
@@ -138,16 +139,8 @@ class MyBot(d.Client):
         # check for option flags
         flags = list(filter(lambda word: word.startswith('-'), words))
 
-        # read date and time in message
-        date_pattern = '(?:0?[1-9]|[12][0-9]|3[01])[-/.](?:0?[1-9]|1[012])[-/.](?:(?:20)?[0-9]{2})'
-        date = re.search(date_pattern, msg.content).group()
-        time_pattern = '(?:\\s0?[0-9]|1[0-9]|2[0-3])[:](?:[0-5][0-9])'
-        time = re.search(time_pattern, msg.content).group()
-        memo_pattern = '\".*\"'
-        memo = re.search(memo_pattern, msg.content).group()
-        await msg.channel.send(f'Datum: {date}')
-        await msg.channel.send(f'Zeit: {time}')
-        await msg.channel.send(f'Memo: {memo}')
+        remind_time = TimeHandler()
+        date, time, memo = remind_time.get_timestamp(msg)
 
         user = msg.author
         # create an entry for the sender in the users() relation if there isn't one already
@@ -157,10 +150,16 @@ class MyBot(d.Client):
             WHERE NOT EXISTS (SELECT user_id FROM users WHERE user_id = \'{user.id}\');
         """)
 
+        await msg.channel.send(f'Reminder für <@!{user.id}> am **{date}** um **{time}** mit dem Text:\n_{memo}_')
+
 
         # name = await db.fetchrow("SELECT data FROM kolleg WHERE id = 0")
         # print(name)
 
+
+        # TO DOs:
+        # - show all currently pending reminders
+        # - delete a reminder
 
 
 
