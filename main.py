@@ -149,6 +149,15 @@ class MyBot(d.Client):
         await msg.channel.send(f'Zeit: {time}')
         await msg.channel.send(f'Memo: {memo}')
 
+        user = msg.author
+        # create an entry for the sender in the users() relation if there isn't one already
+        await self.db.execute(f"""
+            INSERT INTO users(user_id, username, discriminator)
+            SELECT \'{user.id}\', \'{user.name}\', \'{user.discriminator}\'
+            WHERE NOT EXISTS (SELECT user_id FROM users WHERE user_id = \'{user.id}\');
+        """)
+
+
         # name = await db.fetchrow("SELECT data FROM kolleg WHERE id = 0")
         # print(name)
 
