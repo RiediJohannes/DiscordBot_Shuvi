@@ -5,22 +5,16 @@ import random
 import discord as d
 import logging
 import os
+import re
 
 logging.basicConfig(level=logging.INFO)
 
 async def startup():
 
-    database_connection = await asyncpg.create_pool(os.environ.get("DATABASE_URL", None))
+    database_connection = await asyncpg.create_pool(os.environ.get("DATABASE_URL", None), max_size=5, min_size=3)
     bot = MyBot("Shuvi", database_connection)
 
     try:
-        # Example create table code, you'll probably change it to suit you
-        # await db.execute("CREATE TABLE IF NOT EXISTS users(id bigint PRIMARY KEY, data text);")
-        # await db.execute("INSERT INTO users VALUES(1, 'Manuel')")
-
-        # name = await db.fetchrow("SELECT data FROM kolleg WHERE id = 0")
-        # print(name)
-
         # run bot via its private token
         await bot.start(os.environ['DISCORD_TOKEN'])
 
@@ -133,8 +127,32 @@ class MyBot(d.Client):
                     await msg.channel.send(f'Ist gut, {self.name} löscht nichts')
                 else:
                     await msg.channel.send(f'Das beantwortet nicht {self.name}\'s Frage')
-                    await execute_deletion()
+                    await execute_deletion()    # ask again
         await execute_deletion()
+
+
+    async def set_reminder(self, msg: d.message):
+        # split message text into each word (deliminator: ' ') and only take everything after the command
+        words = msg.content.split()[1:]
+
+        # check for option flags
+        flags = list(filter(lambda word: word.startswith('-'), words))
+
+        # read date and time in message
+        date_pattern = '(?:0?[1-9]|[12][0-9]|3[01])[-/.](?:0?[1-9]|1[012])[-/.](?:(?:20)?[0-9]{2})'
+        date = re.search(date_pattern, msg.content).group()
+        time_pattern = '(?:\\s0?[0-9]|1[0-9]|2[0-3])[:](?:[0-5][0-9])'
+        time = re.search(time_pattern, msg.content).group()
+        memo_pattern = '\".*\"'
+        memo = re.search(memo_pattern, msg.content).group()
+        await msg.channel.send(f'Datum: {date}')
+        await msg.channel.send(f'Zeit: {time}')
+        await msg.channel.send(f'Memo: {memo}')
+
+        # name = await db.fetchrow("SELECT data FROM kolleg WHERE id = 0")
+        # print(name)
+
+
 
 
     @staticmethod  # this is only static so that the compiler shuts up at the execute_command()-call above
@@ -147,6 +165,7 @@ class MyBot(d.Client):
         '.delete': delete,
         '.wake': approaches,
         '.spam': spam,
+        '.remindme': set_reminder,
         'not_found': not_found,
         # every function with entry in this dict must have 'self' parameter to work in execute_command call
     }
