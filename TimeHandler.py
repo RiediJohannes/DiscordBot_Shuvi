@@ -1,6 +1,7 @@
 import discord as d
 import re
 from datetime import datetime
+from MsgContainer import MsgContainer
 
 class TimeHandler:
 
@@ -10,11 +11,11 @@ class TimeHandler:
         self.memo_pattern = '(?<=\").*(?=\")'
 
 
-    def get_timestamp(self, msg: d.message):
+    def get_timestamp(self, msg: MsgContainer):
 
         # read date and time in message
-        date_str = re.search(self.date_pattern, msg.content).group()
-        time_str = re.search(self.time_pattern, msg.content).group()
+        date_str = re.search(self.date_pattern, msg.text).group()
+        time_str = re.search(self.time_pattern, msg.text).group()
 
         # if the user used '/' or '-' as a date delimiter, replace it with '.'
         date_str = date_str.replace('/', '.')
@@ -29,5 +30,6 @@ class TimeHandler:
         return timestamp
 
 
-    def get_memo(self, msg: d.message):
-        return re.search(self.memo_pattern, msg.content).group()
+    # finds the message in quotes inside the message and returns it
+    def get_memo(self, msg: MsgContainer):
+        return re.search(self.memo_pattern, msg.text).group()
