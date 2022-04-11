@@ -137,19 +137,29 @@ class MyBot(d.Client):
         time = timestamp.time().isoformat(timespec='minutes')   # get the time in standardized format (hh:mm)
 
         user = msg.user
-        # create an entry for the sender in the users() relation if there isn't one already
-        await self.db.execute(f"""
-            INSERT INTO users(user_id, username, discriminator)
-            SELECT \'{user.id}\', \'{user.name}\', \'{user.discriminator}\'
-            WHERE NOT EXISTS (SELECT user_id FROM users WHERE user_id = \'{user.id}\');
-        """)
 
-        await msg.post(f'Reminder für <@!{user.id}> am **{date}** um **{time}** mit dem Text:\n_{memo}_')
+        # get a confirmation from the user first before deleting
+        reminder_confirmation = ConfirmationPrompt(self, msg)
+        question = f'Reminder für <@!{user.id}> am **{date}** um **{time}** mit dem Text:\n_{memo}_\nPasst das so? (y/n)'
+        abort_msg = f'Na dann, lassen wir das'
+        confirmed, num = await reminder_confirmation.get_confirmation(question=question, abort_msg=abort_msg)
 
-        await self.db.execute(f"""
-            INSERT INTO reminder(id, user_id, date_time_zone, memo)
-            VALUES(gen_random_uuid(), '{user.id}', '{timestamp}', '{memo}');
-        """)
+        if confirmed:
+            # create an entry for the sender in the users() relation if there isn't one already
+            await self.db.execute(f"""
+                INSERT INTO users(user_id, username, discriminator)
+                SELECT \'{user.id}\', \'{user.name}\', \'{user.discriminator}\'
+                WHERE NOT EXISTS (SELECT user_id FROM users WHERE user_id = \'{user.id}\');
+            """)
+
+            # write the new reminder to the database
+            await self.db.execute(f"""
+                INSERT INTO reminder(id, user_id, date_time_zone, memo)
+                VALUES(gen_random_uuid(), '{user.id}', '{timestamp}', '{memo}');
+            """)
+
+            await msg.post(f'Reminder erfolgreich gesetzt! {self.name} wird dich wie gewünscht erinnern UwU')
+
 
         # name = await db.fetchrow("SELECT data FROM kolleg WHERE id = 0")
         # print(name)
