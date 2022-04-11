@@ -1,15 +1,16 @@
-import discord as d
 import re
 from datetime import datetime
 from MsgContainer import MsgContainer
 
+
 class TimeHandler:
 
-    def __init__(self):
-        self.date_pattern = '(?:0?[1-9]|[12][0-9]|3[01])[-/.](?:0?[1-9]|1[012])[-/.](?:(?:20)?[0-9]{2})'
-        self.time_pattern = '(?:0?[0-9]|1[0-9]|2[0-3])[:](?:[0-5][0-9])'
-        self.memo_pattern = '(?<=\").*(?=\")'
+    date_pattern = '(?:0?[1-9]|[12][0-9]|3[01])[-/.](?:0?[1-9]|1[012])[-/.](?:(?:20)?[0-9]{2})'
+    time_pattern = '(?:0?[0-9]|1[0-9]|2[0-3])[:](?:[0-5][0-9])'
+    memo_pattern = '(?<=\").*(?=\")'
 
+    def __init__(self):
+        pass
 
     def get_timestamp(self, msg: MsgContainer):
 

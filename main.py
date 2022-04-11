@@ -1,7 +1,6 @@
 import asyncio
 import asyncpg
 import random
-
 import discord as d
 import sched
 import logging
@@ -9,6 +8,7 @@ import os
 
 from TimeHandler import TimeHandler
 from MsgContainer import MsgContainer
+from ConfirmationPrompt import ConfirmationPrompt
 
 
 logging.basicConfig(level=logging.INFO)
@@ -33,10 +33,9 @@ class MyBot(d.Client):
         self.name = name
         self.db = db
         self.prefix = prefix
-        self.greetings = ['Hallo', 'Hey', 'Hi', 'Hoi', 'Servus', 'Moin', 'Zeawas', 'Seawas', 'Heile', 'Grüezi',
-                          'Ohayou', 'Yahallo']
-        self.when_approached = ['Ja, was ist?', 'Ja?', 'Hm?', 'Was los', 'Zu Diensten!', 'Jo?', 'Hier', 'Was\'n?',
-                                'Schon da', 'Ich hör dir zu', 'So heiß ich']
+        self.greetings = ['Hallo', 'Hey', 'Hi', 'Hoi', 'Servus', 'Moin', 'Zeawas', 'Seawas', 'Heile', 'Grüezi', 'Ohayou', 'Yahallo']
+        self.when_approached = ['Ja, was ist?', 'Ja?', 'Hm?', 'Was los', 'Zu Diensten!', 'Jo?', 'Hier', 'Was\'n?', 'Schon da',
+                                'Ich hör dir zu', 'So heiß ich']
         self.spam_done = ['So, genug gespammt!', 'Genug jetzt!', 'Das reicht jetzt aber wieder mal.', 'Und Schluss', 'Owari desu', 'Habe fertig']
         super().__init__()  # superclass discord.Client needs to be properly initialized as well
 
@@ -66,8 +65,6 @@ class MyBot(d.Client):
             # generate appropriate response
             response = await self.react_to_name(msg)
             await msg.post(response)
-            # reply to message directly
-            # await message.reply(response, mention_author=True)
 
 
     # defines reaction to when a user message includes the bot's name (content of self.name)
@@ -91,6 +88,7 @@ class MyBot(d.Client):
 
     # spams the channel with messages counting up to the number given as a parameter
     async def spam(self, msg: MsgContainer):
+        # takes the first number in the message
         number = int(next(filter(lambda word: word.isnumeric(), msg.words), 0))
         if not number:
             return await msg.post("Eine Zahl wäre schön")
@@ -106,33 +104,28 @@ class MyBot(d.Client):
 
     # deletes a requested number of messages in the same channel (starting from the most recent message)
     async def delete(self, msg: MsgContainer):
-        # author's note: Falls wir später die options abfragen wollen, empfiehlt sich ein check "if options:", um zu schauen, ob die Liste leer ist
 
-        # inner function to handle user response (confirm/abort deletion)
-        async def execute_deletion():
-            number = int(next(filter(lambda word: word.isnumeric(), msg.words), 0))  # search for first number within the text 'words'
-            number += 3  # we also want the messages of the .delete call to disappear at the end
-            remaining = number
+        # author's note: Falls wir später die options abfragen wollen, empfiehlt sich hier ein check "if options:", um zu schauen, ob die Liste leer ist
 
-            try:
-                await msg.post(f'{self.name} würde nun {number-3} Nachrichten löschen. Fortsetzen? (y/n)')
-                answer = await self.wait_for("message", check=lambda ans: ans.author == msg.user and ans.channel == msg.chat, timeout=30.0)
-            except asyncio.TimeoutError:
-                await msg.post(f'Hm, da kommt ja doch nichts mehr... _[Löschen abgebrochen]_')
-            else:
-                if answer.content.casefold() in ['yes', 'y', 'ja', 'jo', 'j', 'hai']:
-                    while remaining > 0:
-                        deletion_stack = remaining if remaining <= 100 else 100  # 100 is the upper deletion limit set by discord's API
-                        trashcan = await msg.chat.history(limit=deletion_stack).flatten()
-                        await msg.chat.delete_messages(trashcan)
-                        remaining -= deletion_stack
-                    await msg.post(f'{number-3} Nachrichten gelöscht', ttl=5.0)
-                elif answer.content.casefold() in ['no', 'n', 'nein', 'na', 'nö', 'nope', 'stop', 'cancel', 'iie']:
-                    await msg.post(f'Ist gut, {self.name} löscht nichts')
-                else:
-                    await msg.post(f'Das beantwortet nicht {self.name}\'s Frage')
-                    await execute_deletion()    # ask again
-        await execute_deletion()
+        # search for first number within the list of words from the message
+        number = int(next(filter(lambda word: word.isnumeric(), msg.words), 0))
+
+        # get a confirmation from the user first before deleting
+        delete_confirmation = ConfirmationPrompt(self, msg)
+        question = f'{self.name} würde nun {number} Nachrichten löschen. Fortsetzen? (y/n)'
+        abort_msg = f'Ist gut, {self.name} löscht nichts'
+        confirmed, extra_messages = await delete_confirmation.get_confirmation(question=question, abort_msg=abort_msg)
+
+        # we also want the messages needed for the confirmation process to disappear
+        remaining = number + extra_messages
+
+        if confirmed:
+            while remaining > 0:
+                deletion_stack = remaining if remaining <= 100 else 100  # 100 is the upper deletion limit set by discord's API
+                trashcan = await msg.chat.history(limit=deletion_stack).flatten()
+                await msg.chat.delete_messages(trashcan)
+                remaining -= deletion_stack
+            await msg.post(f'{number} Nachrichten gelöscht', ttl=5.0)
 
 
     async def set_reminder(self, msg: MsgContainer):

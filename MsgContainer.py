@@ -35,7 +35,6 @@ class MsgContainer(d.Message):
         if not self.prefix.isalpha() and not self.prefix.isnumeric():
             self.cmd = msg.content.casefold().split()[0][1:]  # takes in the command (first word in the message) but leaves out the prefix!
             self.words = msg.content.casefold().split()[1:]  # splits the rest of the message into an array of distinct words (splits at each whitespace)
-
         else:
             self.cmd = None     # there was no command given
             self.words = msg.content.split()    # splits the message into an array of distinct words (splits at each whitespace)
