@@ -90,7 +90,7 @@ class MyBot(d.Client):
                     );
                 """)
                 # create a reminder object from the data retrieved from the database
-                reminder = Reminder(reminder_args)
+                reminder = Reminder(reminder_args[0], reminder_args[1], reminder_args[2], reminder_args[3], reminder_args[4])
 
                 # post reminder memo into the specified channel after countdown is finished
                 await countdown
@@ -98,7 +98,7 @@ class MyBot(d.Client):
                 await chat.send(f'Reminder an <@!{reminder.user_id}>:\n{reminder.memo}')
 
                 # delete reminder in database afterwards
-                await self.db.execute(f"DELETE FROM reminder WHERE id = '{reminder.user_id}';")
+                await self.db.execute(f"DELETE FROM reminder WHERE id = '{reminder.rem_id}';")
 
             else:
                 # sleep for a while (80% of the time remaining to be exact, for one hour at max)
@@ -214,14 +214,14 @@ class MyBot(d.Client):
             # create an entry for the sender in the users() relation if there isn't one already
             await self.db.execute(f"""
                 INSERT INTO users(user_id, username, discriminator)
-                SELECT '{user.id}', '{user.name}', '{user.discriminator}'
-                WHERE NOT EXISTS (SELECT user_id FROM users WHERE user_id = \'{user.id}\');
+                SELECT {user.id}, '{user.name}', '{user.discriminator}'
+                WHERE NOT EXISTS (SELECT user_id FROM users WHERE user_id = {user.id});
             """)
 
             # write the new reminder to the database
             await self.db.execute(f"""
                 INSERT INTO reminder(id, user_id, channel_id, date_time_zone, memo)
-                VALUES(gen_random_uuid(), '{user.id}', '{msg.chat.id}', '{timestamp}', '{memo}');
+                VALUES(gen_random_uuid(), {user.id}, {msg.chat.id}, '{timestamp}', '{memo}');
             """)
 
             await msg.post(f'Reminder erfolgreich gesetzt! {self.name} wird dich wie gewünscht erinnern UwU')
