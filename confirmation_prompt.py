@@ -1,4 +1,4 @@
-from MsgContainer import MsgContainer
+from msg_container import MsgContainer
 import asyncio
 
 class ConfirmationPrompt:

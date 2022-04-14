@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-from MsgContainer import MsgContainer
+from msg_container import MsgContainer
 
 
 class TimeHandler:

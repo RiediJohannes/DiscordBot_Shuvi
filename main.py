@@ -5,10 +5,10 @@ import discord as d
 import logging
 import os
 
-from TimeHandler import TimeHandler
-from MsgContainer import MsgContainer
-from ConfirmationPrompt import ConfirmationPrompt
-from Reminder import Reminder
+from time_handler import TimeHandler
+from msg_container import MsgContainer
+from confirmation_prompt import ConfirmationPrompt
+from reminder import Reminder
 
 
 logging.basicConfig(level=logging.INFO)
