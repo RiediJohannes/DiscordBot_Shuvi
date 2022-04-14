@@ -8,6 +8,7 @@ import os
 from TimeHandler import TimeHandler
 from MsgContainer import MsgContainer
 from ConfirmationPrompt import ConfirmationPrompt
+from Reminder import Reminder
 
 
 logging.basicConfig(level=logging.INFO)
@@ -62,10 +63,10 @@ class MyBot(d.Client):
         while True:
             # check the time remaining until the next reminder is due
             due_date, time_remaining = await self.db.fetchrow("""
-                        SELECT MIN(rem.date_time_zone), EXTRACT(EPOCH FROM ( MIN(rem.date_time_zone) - current_timestamp) )
-                        FROM reminder rem
-                        WHERE rem.date_time_zone > current_timestamp;
-                    """)
+                SELECT MIN(rem.date_time_zone), EXTRACT(EPOCH FROM ( MIN(rem.date_time_zone) - current_timestamp) )
+                FROM reminder rem
+                WHERE rem.date_time_zone > current_timestamp;
+            """)
 
             logging.info(f'Next reminder is due at: {due_date}')
             time_remaining = int(time_remaining)
@@ -74,13 +75,31 @@ class MyBot(d.Client):
             # if the time remaining is less than a minute, initiate the reminding process
             if time_remaining < 60:
                 logging.info(f'Upcoming reminder in {time_remaining} seconds...')
-                # sleep one last time until the reminder is due
-                await asyncio.sleep(time_remaining)
 
-                # ToDo: get reminder data from db
+                # create a new task to sleep one last time until the reminder is due
+                countdown = asyncio.create_task(asyncio.sleep(time_remaining))
 
-                chat = self.get_channel(955511857156857949)  # replace with channel ID in reminder object
-                await chat.send('Hier würde deine Nachricht stehen')    # replace with memo in reminder object
+                # retrieve all the information about the upcoming reminder
+                reminder_args = await self.db.fetchrow("""
+                    SELECT id, user_id, channel_id, date_time_zone, memo
+                    FROM reminder
+                    WHERE date_time_zone = (
+                        SELECT MIN(rem.date_time_zone)
+                        FROM reminder rem
+                        WHERE rem.date_time_zone > current_timestamp
+                    );
+                """)
+                # create a reminder object from the data retrieved from the database
+                reminder = Reminder(reminder_args)
+
+                # post reminder memo into the specified channel after countdown is finished
+                await countdown
+                chat = self.get_channel(reminder.channel_id)
+                await chat.send(f'Reminder an <@!{reminder.user_id}>:\n{reminder.memo}')
+
+                # delete reminder in database afterwards
+                await self.db.execute(f"DELETE FROM reminder WHERE id = '{reminder.user_id}';")
+
             else:
                 # sleep for a while (80% of the time remaining to be exact, for one hour at max)
                 # then check again if the reminder is still valid
