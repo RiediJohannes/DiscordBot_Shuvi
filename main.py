@@ -9,6 +9,7 @@ from time_handler import TimeHandler
 from msg_container import MsgContainer
 from confirmation_prompt import ConfirmationPrompt
 from reminder import Reminder
+from database_wrapper import DatabaseWrapper
 
 
 logging.basicConfig(level=logging.INFO)
@@ -18,9 +19,10 @@ async def startup():
 
     # setup connection to heroku postgres database
     database_connection = await asyncpg.create_pool(os.environ.get("DATABASE_URL", None), max_size=5, min_size=3)
+    database = DatabaseWrapper(database_connection)
 
     # instantiate a discord bot of custom class MyBot
-    bot = MyBot(name="Shuvi", db=database_connection, prefix='.')
+    bot = MyBot(name="Shuvi", db=database, prefix='.')
 
     try:
         # run bot via its private API token
@@ -62,14 +64,9 @@ class MyBot(d.Client):
 
         while True:
             # check the time remaining until the next reminder is due
-            due_date, time_remaining = await self.db.fetchrow("""
-                SELECT MIN(rem.date_time_zone), EXTRACT(EPOCH FROM ( MIN(rem.date_time_zone) - current_timestamp) )
-                FROM reminder rem
-                WHERE rem.date_time_zone > current_timestamp;
-            """)
+            due_date, time_remaining = await self.db.check_next_reminder()
 
             logging.info(f'Next reminder is due at: {due_date}')
-            time_remaining = int(time_remaining)
             logging.info(f'Time left: {time_remaining} seconds')
 
             # if the time remaining is less than a minute, initiate the reminding process
@@ -79,26 +76,16 @@ class MyBot(d.Client):
                 # create a new task to sleep one last time until the reminder is due
                 countdown = asyncio.create_task(asyncio.sleep(time_remaining))
 
-                # retrieve all the information about the upcoming reminder
-                reminder_args = await self.db.fetchrow("""
-                    SELECT id, user_id, channel_id, date_time_zone, memo
-                    FROM reminder
-                    WHERE date_time_zone = (
-                        SELECT MIN(rem.date_time_zone)
-                        FROM reminder rem
-                        WHERE rem.date_time_zone > current_timestamp
-                    );
-                """)
-                # create a reminder object from the data retrieved from the database
-                reminder = Reminder(reminder_args[0], reminder_args[1], reminder_args[2], reminder_args[3], reminder_args[4])
+                # retrieve the upcoming reminder as a reminder object
+                reminder = await self.db.fetch_upcoming_reminder()
 
-                # post reminder memo into the specified channel after countdown is finished
+                # wait for countdown to finish, then post reminder memo into the specified channel
                 await countdown
                 chat = self.get_channel(reminder.channel_id)
                 await chat.send(f'Reminder an <@!{reminder.user_id}>:\n{reminder.memo}')
 
                 # delete reminder in database afterwards
-                await self.db.execute(f"DELETE FROM reminder WHERE id = '{reminder.rem_id}';")
+                await self.db.delete_reminder(reminder)
 
             else:
                 # sleep for a while (80% of the time remaining to be exact, for one hour at max)
@@ -209,20 +196,12 @@ class MyBot(d.Client):
         abort_msg = f'Na dann, lassen wir das'
         confirmed, num = await reminder_confirmation.get_confirmation(question=question, abort_msg=abort_msg)
 
-        # ToDo: create a class to handle all database requests and only pass the necessary objects (e.g. msg) into it
         if confirmed:
             # create an entry for the sender in the users() relation if there isn't one already
-            await self.db.execute(f"""
-                INSERT INTO users(user_id, username, discriminator)
-                SELECT {user.id}, '{user.name}', '{user.discriminator}'
-                WHERE NOT EXISTS (SELECT user_id FROM users WHERE user_id = {user.id});
-            """)
+            await self.db.create_user_entry(user)
 
             # write the new reminder to the database
-            await self.db.execute(f"""
-                INSERT INTO reminder(id, user_id, channel_id, date_time_zone, memo)
-                VALUES(gen_random_uuid(), {user.id}, {msg.chat.id}, '{timestamp}', '{memo}');
-            """)
+            await self.db.push_reminder(msg, timestamp, memo)
 
             await msg.post(f'Reminder erfolgreich gesetzt! {self.name} wird dich wie gewünscht erinnern UwU')
 
@@ -236,7 +215,12 @@ class MyBot(d.Client):
 
 
         # ToDo: show all currently pending reminders
-        # ToDo: delete a reminder
+        # ToDo: manually delete a reminder
+
+        # ToDo: Bugfix - what if there is no reminder in the database?
+        # ToDo: Bugfix - Ensure that reminders also happen when they are missed by like up to 120 seconds
+        # ToDo: Bugfix - occasionally go through database and clear old reminders
+
 
 
     @staticmethod  # this is only static so that the compiler shuts up at the execute_command()-call above

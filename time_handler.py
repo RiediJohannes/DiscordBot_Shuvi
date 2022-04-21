@@ -12,7 +12,7 @@ class TimeHandler:
     def __init__(self):
         pass
 
-    def get_timestamp(self, msg: MsgContainer):
+    def get_timestamp(self, msg: MsgContainer) -> datetime:
 
         # read date and time in message
         date_str = re.search(self.date_pattern, msg.text).group()
