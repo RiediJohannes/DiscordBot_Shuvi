@@ -8,7 +8,6 @@ import os
 from time_handler import TimeHandler
 from msg_container import MsgContainer
 from confirmation_prompt import ConfirmationPrompt
-from reminder import Reminder
 from database_wrapper import DatabaseWrapper
 
 
@@ -56,6 +55,9 @@ class MyBot(d.Client):
         # confirm successful bot startup with a message into to 'bot' channel on my private server
         chat = self.get_channel(955511857156857949)
         await chat.send('Shuvi ist nun hochgefahren!')
+
+        # remove long expired reminders from database
+        await self.db.clean_up_reminders()
 
 
     async def watch_reminders(self):
@@ -219,7 +221,6 @@ class MyBot(d.Client):
 
         # ToDo: Bugfix - what if there is no reminder in the database?
         # ToDo: Bugfix - Ensure that reminders also happen when they are missed by like up to 120 seconds
-        # ToDo: Bugfix - occasionally go through database and clear old reminders
 
 
 

@@ -30,12 +30,24 @@ class DatabaseWrapper:
             );
         """)
         # create a reminder object from the data retrieved from the database
-        return Reminder(reminder_args[0], reminder_args[1], reminder_args[2], reminder_args[3], reminder_args[4])
+        return Reminder(rem_id=reminder_args[0], user_id=reminder_args[1], channel_id=reminder_args[2], due_date=reminder_args[3], memo=reminder_args[4])
 
 
     async def delete_reminder(self, reminder) -> None:
         # delete reminder in database afterwards
-        await self.database_connection.execute(f"DELETE FROM reminder WHERE id = '{reminder.rem_id}';")
+        await self.delete_reminder_by_id(reminder.rem_id)
+
+
+    async def delete_reminder_by_id(self, reminder_id) -> None:
+        # delete reminder in database afterwards
+        await self.database_connection.execute(f"DELETE FROM reminder WHERE id = '{reminder_id}';")
+
+
+    # remove long expired reminders from database
+    async def clean_up_reminders(self) -> None:
+        # lösche alte Reminder, die seit mehr als zwei Tagen abgelaufen sind
+        await self.database_connection.execute("DELETE FROM reminder WHERE date_time_zone < current_timestamp - INTERVAL '2 day';")
+
 
 
     async def create_user_entry(self, user) -> None:
