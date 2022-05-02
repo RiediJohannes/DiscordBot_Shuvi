@@ -5,13 +5,18 @@ import discord as d
 import logging
 import os
 
+from logger import CustomFormatter
 from time_handler import TimeHandler
 from msg_container import MsgContainer
 from confirmation_prompt import ConfirmationPrompt
 from database_wrapper import DatabaseWrapper
 
+handler = logging.StreamHandler()
+handler.setFormatter(CustomFormatter())
 
-logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('discord')
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 
 async def startup():
@@ -29,9 +34,9 @@ async def startup():
         asyncio.create_task(bot.watch_reminders(), name='reminder_watchdog')
         await main_task
 
-    except KeyboardInterrupt:
+    finally:
         await database_connection.close()
-        await bot.logout()
+        await bot.close()
 
 
 class MyBot(d.Client):
@@ -50,7 +55,7 @@ class MyBot(d.Client):
 
     # executes when bot setup is finished
     async def on_ready(self):
-        logging.info('Logged on as {0}!'.format(self.user))
+        logger.info('Logged on as {0}!'.format(self.user))
 
         # confirm successful bot startup with a message into to 'bot' channel on my private server
         chat = self.get_channel(955511857156857949)
@@ -68,12 +73,12 @@ class MyBot(d.Client):
             # check the time remaining until the next reminder is due
             due_date, time_remaining = await self.db.check_next_reminder()
 
-            logging.info(f'Next reminder is due at: {due_date}')
-            logging.info(f'Time left: {time_remaining} seconds')
+            logger.info(f'Next reminder is due at: {due_date}')
+            logger.info(f'Time left: {time_remaining} seconds')
 
             # if the time remaining is less than a minute, initiate the reminding process
             if time_remaining < 60:
-                logging.info(f'Upcoming reminder in {time_remaining} seconds...')
+                logger.info(f'Upcoming reminder in {time_remaining} seconds...')
 
                 # create a new task to sleep one last time until the reminder is due
                 countdown = asyncio.create_task(asyncio.sleep(time_remaining))
@@ -93,13 +98,13 @@ class MyBot(d.Client):
                 # sleep for a while (80% of the time remaining to be exact, for one hour at max)
                 # then check again if the reminder is still valid
                 sleep_time = time_remaining / 1.25 if time_remaining < 1.25*3600 else 3600
-                logging.info(f'ReminderWatchdog is now sleeping for {sleep_time} seconds')
+                logger.info(f'ReminderWatchdog is now sleeping for {sleep_time} seconds')
                 await asyncio.sleep(sleep_time)
 
 
     # executes when a new message is detected in any channel
     async def on_message(self, message):
-        print('Message from {0.author}: {0.content}'.format(message))
+        logger.debug('Message from {0.author}: {0.content}'.format(message))
 
         # prevent response to own messages or messages from any other bots
         if message.author.bot:
@@ -215,6 +220,10 @@ class MyBot(d.Client):
             # create a new watchdog task which starts by scanning again for the next due date
             asyncio.create_task(self.watch_reminders(), name='reminder_watchdog')
 
+
+        # ToDo: handle time zones
+        # ToDo: let each user define their default time zone
+        # ToDo: let a user change their default time zone
 
         # ToDo: show all currently pending reminders
         # ToDo: manually delete a reminder
