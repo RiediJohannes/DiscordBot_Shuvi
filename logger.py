@@ -8,7 +8,7 @@ class CustomFormatter(logging.Formatter):
     bold_red = "\x1b[31;1m"
     reset = "\x1b[0m"
 
-    format = "%(levelname)s: %(asctime)s - %(message)s \t\t[%(name)s] (in: %(filename)s line %(lineno)d)"
+    format = "%(levelname)s: %(asctime)s - %(message)-90s \t[%(name)s] (in: %(filename)s line %(lineno)d)"
     date_format = "%Y-%m-%d %H:%M:%S"
 
     FORMATS = {

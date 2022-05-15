@@ -5,7 +5,9 @@ import discord as d
 import logging
 import os
 
+from typing import List, Set
 from logger import CustomFormatter
+from reminder import Reminder
 from time_handler import TimeHandler
 from msg_container import MsgContainer
 from confirmation_prompt import ConfirmationPrompt
@@ -25,8 +27,10 @@ async def startup():
     database_connection = await asyncpg.create_pool(os.environ.get("DATABASE_URL", None), max_size=5, min_size=3)
     database = DatabaseWrapper(database_connection)
 
+    intents = d.Intents.default()
+    intents.members = True
     # instantiate a discord bot of custom class MyBot
-    bot = MyBot(name="Shuvi", db=database, prefix='.')
+    bot = MyBot(name="Shuvi", db=database, prefix='.', intents=intents)
 
     try:
         # run bot via its private API token
@@ -41,7 +45,7 @@ async def startup():
 
 class MyBot(d.Client):
 
-    def __init__(self, name="Bot", db=None, prefix='.'):
+    def __init__(self, name="Bot", db=None, prefix='.', intents=None):
         self.name = name
         self.db = db
         self.prefix = prefix
@@ -50,7 +54,7 @@ class MyBot(d.Client):
         self.when_approached = ['Ja, was ist?', 'Ja?', 'Hm?', 'Was los', 'Zu Diensten!', 'Jo?', 'Hier', 'Was\'n?', 'Schon da',
                                 'Ich hör dir zu', 'So heiß ich']
         self.spam_done = ['So, genug gespammt!', 'Genug jetzt!', 'Das reicht jetzt aber wieder mal.', 'Und Schluss', 'Owari desu', 'Habe fertig']
-        super().__init__()  # superclass discord.Client needs to be properly initialized as well
+        super().__init__(intents=intents)  # superclass discord.Client needs to be properly initialized as well
 
 
     # executes when bot setup is finished
@@ -84,7 +88,7 @@ class MyBot(d.Client):
                 countdown = asyncio.create_task(asyncio.sleep(time_remaining))
 
                 # retrieve the upcoming reminder as a reminder object
-                reminder = await self.db.fetch_upcoming_reminder()
+                reminder = await self.db.fetch_next_reminder()
 
                 # wait for countdown to finish, then post reminder memo into the specified channel
                 await countdown
@@ -188,6 +192,12 @@ class MyBot(d.Client):
 
 
     async def set_reminder(self, msg: MsgContainer):
+
+        # option 1: the user just wanted to see the upcoming reminders
+        if '-show' in msg.options:
+            report_msg, embed = await self.show_reminders()
+            return await msg.post(report_msg, embed=embed)
+
         reminder_filter = TimeHandler()
         timestamp = reminder_filter.get_timestamp(msg)
         memo = reminder_filter.get_memo(msg)
@@ -220,17 +230,27 @@ class MyBot(d.Client):
             # create a new watchdog task which starts by scanning again for the next due date
             asyncio.create_task(self.watch_reminders(), name='reminder_watchdog')
 
+    async def show_reminders(self) -> [str, d.Embed]:
+        next_reminders: List[Reminder] = await self.db.fetch_reminders()
+        if not next_reminders:  # empty list -> no reminders found in the database
+            return 'Aktuell steht kein Reminder in der Zukunft an', None    # no embed (2nd return value)
 
-        # ToDo: handle time zones
-        # ToDo: let each user define their default time zone
-        # ToDo: let a user change their default time zone
+        reminder_embed = d.Embed(title="Die nächsten Reminder sind...", color=0x660000)
+        for i, rem in enumerate(next_reminders):
+            user = self.get_user(rem.user_id)
+            reminder_embed.add_field(name=f'({i+1})  {rem.due_date.strftime("%d.%m.%Y, %H:%M")} an {user.display_name}:', value=rem.memo, inline=False)
+        return None, reminder_embed  # no string message (1st return value)
 
-        # ToDo: show all currently pending reminders
-        # ToDo: manually delete a reminder
 
-        # ToDo: Bugfix - what if there is no reminder in the database?
-        # ToDo: Bugfix - Ensure that reminders also happen when they are missed by like up to 120 seconds
+    # ToDo: handle time zones
+    # ToDo: let each user define their default time zone
+    # ToDo: let a user change their default time zone
 
+    # ToDo: manually delete a reminder
+
+    # ToDo: Bugfix - what if there is no reminder in the database?
+    # ToDo: Bugfix - Ensure that reminders also happen when they are missed by like up to 120 seconds
+    # TODO: Bugfix - Incorrect reminder input
 
 
     @staticmethod  # this is only static so that the compiler shuts up at the execute_command()-call above

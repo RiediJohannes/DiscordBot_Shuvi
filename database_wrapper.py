@@ -19,7 +19,7 @@ class DatabaseWrapper:
         return [due_date, int(timeleft_epoch) + 1]
 
 
-    async def fetch_upcoming_reminder(self) -> Reminder:
+    async def fetch_next_reminder(self) -> Reminder:
         reminder_args = await self.database_connection.fetchrow("""
             SELECT id, user_id, channel_id, date_time_zone, memo
             FROM reminder
@@ -30,7 +30,22 @@ class DatabaseWrapper:
             );
         """)
         # create a reminder object from the data retrieved from the database
-        return Reminder(rem_id=reminder_args[0], user_id=reminder_args[1], channel_id=reminder_args[2], due_date=reminder_args[3], memo=reminder_args[4])
+        return Reminder(*reminder_args)
+
+
+    async def fetch_reminders(self) -> list[Reminder]:
+        reminder_args = await self.database_connection.fetch("""
+            SELECT id, user_id, channel_id, date_time_zone, memo
+            FROM reminder rem
+            WHERE rem.date_time_zone >= current_timestamp
+            ORDER BY date_time_zone ASC;
+        """)
+        # create a list of Reminder objects from the data
+        reminder_list = []
+        for record in reminder_args:
+            new_reminder = Reminder(*record)
+            reminder_list.append(new_reminder)
+        return reminder_list
 
 
     async def delete_reminder(self, reminder) -> None:
@@ -47,7 +62,6 @@ class DatabaseWrapper:
     async def clean_up_reminders(self) -> None:
         # lösche alte Reminder, die seit mehr als zwei Tagen abgelaufen sind
         await self.database_connection.execute("DELETE FROM reminder WHERE date_time_zone < current_timestamp - INTERVAL '2 day';")
-
 
 
     async def create_user_entry(self, user) -> None:
