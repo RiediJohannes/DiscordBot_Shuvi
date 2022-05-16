@@ -208,6 +208,13 @@ class MyBot(d.Client):
             except AuthorizationException as exp:
                 await msg.post('Du kannst nicht einfach den Reminder von jemand anderem löschen, wtf?\n'
                                '-- _{0} hat versucht den Reminder "{1}" von <@{2}> zu löschen._ --'.format(exp.accessor.display_name, exp.resource.memo, exp.owner))
+            except ReminderNotFoundException:
+                await msg.post('Aktuell scheint es gar keine anstehenden Reminder zu geben. Niemand nutzt Shuvis Hilfe :(')
+            except IndexOutOfBoundsException as exp:
+                await msg.post('{0}? Sorry aber so viele Reminder kennt Shuvi aktuell gar nicht'.format(exp.index + 1))
+            except InvalidArgumentsException:
+                await msg.post('Welchen Reminder möchtest du denn löschen? Mir fehlt da eine Nummer')
+                # TODO: maybe move this up to execute_command in the future
             return
 
         reminder_filter = TimeHandler()
@@ -245,6 +252,8 @@ class MyBot(d.Client):
         asyncio.create_task(self.watch_reminders(), name='reminder_watchdog')
 
 
+    # returns an embed, listing all reminders that are currently in the database
+    # TODO: perhaps only return reminders for the server in which msg was sent in the first place
     async def show_reminders(self) -> [str, d.Embed]:
         next_reminders: List[Reminder] = await self.db.fetch_reminders()
         if not next_reminders:  # empty list -> no reminders found in the database
@@ -253,16 +262,28 @@ class MyBot(d.Client):
         reminder_embed = d.Embed(title="Die nächsten Reminder sind...", color=0x660000)
         for i, rem in enumerate(next_reminders):
             user = self.get_user(rem.user_id)
-            reminder_embed.add_field(name=f'({i+1})  {rem.due_date.strftime("%d.%m.%Y, %H:%M")} an {user.display_name} halt:', value=rem.memo, inline=False)
+            reminder_embed.add_field(name=f'({i+1})  {rem.due_date.strftime("%d.%m.%Y, %H:%M")} an {user.display_name}:', value=rem.memo, inline=False)
+        reminder_embed.set_footer(text='Tipp: Verwende ".remindme -d <Nummer>", um den\nReminder mit gegebener Nummer zu löschen')
         return None, reminder_embed  # no string message (1st return value)
 
 
-    async def delete_reminder(self, msg: MsgContainer) -> None:
+    # deletes the reminder with the given index (ordinal number, ordered by due_date) from the database
+    # checkout .remindme -show to find the index of your target reminder
+    async def delete_reminder(self, msg: MsgContainer) -> None | AuthorizationException | InvalidArgumentsException | IndexOutOfBoundsException:
         reminder_nr = self.__find_first_number(msg.words)
-        print(reminder_nr)
+        if reminder_nr is None:
+            raise InvalidArgumentsException("Couldn't find a number in the command arguments", arguments=msg.words)
+
+        # fetch all upcoming reminders from the database and choose the one at the given index
         upcoming_reminders: List[Reminder] = await self.db.fetch_reminders()
+        if not upcoming_reminders:
+            raise ReminderNotFoundException("There are no upcoming reminders at the moment")
+        if reminder_nr > len(upcoming_reminders):
+            raise IndexOutOfBoundsException(f"Index {reminder_nr-1} not in scope of available reminders (length: {len(upcoming_reminders)})",
+                                            index=reminder_nr-1, length=len(upcoming_reminders), collection=upcoming_reminders)
         del_rem = upcoming_reminders[reminder_nr - 1]
 
+        # check if the reminder belongs to the user that wants to delete it
         if del_rem.user_id != msg.user.id:
             raise AuthorizationException(f"User {msg.user.display_name} (id: {msg.user.id}) tried to delete a reminder of user {del_rem.user_id}!", accessor=msg.user, owner=del_rem.user_id, resource=del_rem)
 
@@ -274,8 +295,7 @@ class MyBot(d.Client):
         question = f'Reminder für <@!{del_rem.user_id}> am **{date}** um **{time}** mit dem Text:\n_{del_rem.memo}_\nwird nun **gelöscht**.' \
                    f'\nFortsetzen? (y/n)'
         abort_msg = f'Alles klar, der Reminder bleibt'
-        confirmed, num_of_messages = await reminder_confirmation.get_confirmation(question=question,
-                                                                                  abort_msg=abort_msg)
+        confirmed, num_of_messages = await reminder_confirmation.get_confirmation(question=question, abort_msg=abort_msg)
         if not confirmed:
             return
         await self.db.delete_reminder(del_rem)
