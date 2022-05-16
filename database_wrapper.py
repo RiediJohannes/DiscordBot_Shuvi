@@ -79,4 +79,3 @@ class DatabaseWrapper:
             INSERT INTO reminder(id, user_id, channel_id, date_time_zone, memo)
             VALUES(gen_random_uuid(), {msg.user.id}, {msg.chat.id}, '{timestamp}', '{memo}');
         """)
-

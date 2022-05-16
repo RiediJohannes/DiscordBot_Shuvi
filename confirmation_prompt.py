@@ -15,7 +15,7 @@ class ConfirmationPrompt:
         self.task_messages = 1
 
 
-    async def get_confirmation(self, question, abort_msg, timeout_msg=None, retry_msg=None):
+    async def get_confirmation(self, question, abort_msg, timeout_msg=None, retry_msg=None) -> [bool, int]:
         if retry_msg is None:
             retry_msg = self.default_retry_msg
         if timeout_msg is None:
