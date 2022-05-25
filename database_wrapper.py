@@ -41,18 +41,21 @@ class DatabaseWrapper:
         return Reminder(*reminder_args)
 
 
-    async def fetch_reminders(self) -> list[Reminder]:
-        reminder_args = await self.database_connection.fetch("""
+    async def fetch_reminders(self, channels=None) -> list[Reminder]:
+        channel_filter = ''
+        # if a list of channels was given, only fetch reminders which are bound to one of those channels
+        if channels:
+            server: str = ", ".join(channels)
+            channel_filter = f'AND rem.channel_id IN ({server})'
+
+        reminder_args = await self.database_connection.fetch(f"""
             SELECT id, user_id, channel_id, date_time_zone, memo
             FROM reminder rem
-            WHERE rem.date_time_zone >= current_timestamp
+            WHERE rem.date_time_zone >= current_timestamp {channel_filter}
             ORDER BY date_time_zone ASC;
         """)
         # create a list of Reminder objects from the data
-        reminder_list = []
-        for record in reminder_args:
-            new_reminder = Reminder(*record)
-            reminder_list.append(new_reminder)
+        reminder_list = [Reminder(*record) for record in reminder_args]
         return reminder_list
 
 

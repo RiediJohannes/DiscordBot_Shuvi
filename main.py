@@ -214,7 +214,7 @@ class MyBot(d.Client):
     async def set_reminder(self, msg: MsgContainer):
         # option 1: the user just wanted to see the upcoming reminders
         if '-s' in msg.options or '-show' in msg.options:
-            report_msg, embed = await self.show_reminders()
+            report_msg, embed = await self.show_reminders(msg)
             return await msg.post(report_msg, embed=embed)
 
         # option 2: the user wants to delete a reminder
@@ -339,12 +339,16 @@ class MyBot(d.Client):
 
 
     # returns an embed, listing all reminders that are currently in the database
-    # TODO: perhaps only return reminders for the server in which msg was sent in the first place
-    async def show_reminders(self) -> [str, d.Embed]:
-        next_reminders: List[Reminder] = await self.db.fetch_reminders()
+    async def show_reminders(self, msg: MsgContainer) -> [str, d.Embed]:
+        # get a list of channel_ids for all channels on the message's server
+        channel_list = [str(channel.id) for channel in msg.server.text_channels]
+
+        # fetch a list of upcoming reminders on this server from the database
+        next_reminders: List[Reminder] = await self.db.fetch_reminders(channels=channel_list)
         if not next_reminders:  # empty list -> no reminders found in the database
             return 'Aktuell steht kein Reminder in der Zukunft an', None    # no embed (2nd return value)
 
+        # create an embed to neatly display the upcoming reminders
         reminder_embed = d.Embed(title="Die nächsten Reminder sind...", color=0x660000)
         for i, rem in enumerate(next_reminders):
             user = self.get_user(rem.user_id)

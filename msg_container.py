@@ -23,11 +23,13 @@ class MsgContainer(d.Message):
         self.stickers = msg.stickers
         self.reference = msg.reference
 
+
         # renamed attributes
         self.user = msg.author
         self.text = msg.content
         self.lower_text = msg.content.casefold()
         self.chat = msg.channel
+        self.server = msg.guild
 
         # new custom attributes
         self.prefix = msg.content[0]  # the first character of the message
