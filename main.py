@@ -4,16 +4,18 @@ import datetime
 import asyncpg
 import random
 import discord as d
-from typing import List, Set
 import logging
 import os
+import pytz
 
-from exceptions import *
+from typing import List, Tuple
 from logger import CustomFormatter
+from fuzzywuzzy import fuzz, process
+from exceptions import *
 from reminder import Reminder
 from time_handler import TimeHandler
 from msg_container import MsgContainer
-from confirmation_prompt import ConfirmationPrompt
+from user_interaction_handler import UserInteractionHandler
 from database_wrapper import DatabaseWrapper
 
 
@@ -67,7 +69,7 @@ class MyBot(d.Client):
 
         # confirm successful bot startup with a message into to 'bot' channel on my private server
         chat = self.get_channel(955511857156857949)
-        await chat.send('Shuvi ist nun hochgefahren!')
+        await chat.send(self.name + ' ist nun hochgefahren!')
 
         # remove long expired reminders from database
         await self.db.clean_up_reminders()
@@ -178,7 +180,7 @@ class MyBot(d.Client):
         number = int(next(filter(lambda word: word.isnumeric(), msg.words), 0))
 
         # get a confirmation from the user first before deleting
-        delete_confirmation = ConfirmationPrompt(self, msg)
+        delete_confirmation = UserInteractionHandler(self, msg)
         question = f'{self.name} würde nun {number} Nachrichten löschen. Fortsetzen? (y/n)'
         abort_msg = f'Ist gut, {self.name} löscht nichts'
         confirmed, extra_messages = await delete_confirmation.get_confirmation(question=question, abort_msg=abort_msg)
@@ -209,9 +211,9 @@ class MyBot(d.Client):
                 await msg.post('Du kannst nicht einfach den Reminder von jemand anderem löschen, wtf?\n'
                                '-- _{0} hat versucht den Reminder "{1}" von <@{2}> zu löschen._ --'.format(exp.accessor.display_name, exp.resource.memo, exp.owner))
             except ReminderNotFoundException:
-                await msg.post('Aktuell scheint es gar keine anstehenden Reminder zu geben. Niemand nutzt Shuvis Hilfe :(')
+                await msg.post(f'Aktuell scheint es gar keine anstehenden Reminder zu geben. Niemand nutzt {self.name}s Hilfe :(')
             except IndexOutOfBoundsException as exp:
-                await msg.post('{0}? Sorry aber so viele Reminder kennt Shuvi aktuell gar nicht'.format(exp.index + 1))
+                await msg.post('{0}? Sorry aber so viele Reminder kennt {1} aktuell gar nicht'.format(exp.index + 1, self.name))
             except InvalidArgumentsException:
                 await msg.post('Welchen Reminder möchtest du denn löschen? Mir fehlt da eine Nummer')
                 # TODO: maybe move this up to execute_command in the future
@@ -226,7 +228,7 @@ class MyBot(d.Client):
         user = msg.user
 
         # get a confirmation from the user first before deleting
-        reminder_confirmation = ConfirmationPrompt(self, msg)
+        reminder_confirmation = UserInteractionHandler(self, msg)
         question = f'Reminder für <@!{user.id}> am **{date}** um **{time}** mit dem Text:\n_{memo}_\nPasst das so? (y/n)'
         abort_msg = f'Na dann, lassen wir das'
         confirmed, num = await reminder_confirmation.get_confirmation(question=question, abort_msg=abort_msg)
@@ -235,8 +237,13 @@ class MyBot(d.Client):
         if not confirmed:
             return
 
-        # create an entry for the sender in the users() relation if there isn't one already
-        await self.db.create_user_entry(user)
+        user_data = await self.db.fetch_user_entry(user)
+        if not user_data:
+            # create an entry for the sender in the users() relation if there isn't one already
+            await self.db.create_user_entry(user)
+            await self.__add_timezone(msg)
+        elif not user_data.tz:
+            await self.__add_timezone(msg)
 
         # write the new reminder to the database
         await self.db.push_reminder(msg, timestamp, memo)
@@ -250,6 +257,47 @@ class MyBot(d.Client):
                 task.cancel()
         # create a new watchdog task which starts by scanning again for the next due date
         asyncio.create_task(self.watch_reminders(), name='reminder_watchdog')
+
+
+    async def __add_timezone(self, msg: MsgContainer) -> None:
+        default_tz = 'Europe/Berlin'
+        timezone_interrogation = UserInteractionHandler(self, msg)
+        question = f'Du hast noch nie deine Zeitzone angegeben.\n' \
+                   f'Möchtest du die Standardzeitzone {default_tz} wählen? (y/n)'
+        abort_msg = f'Na dann, welche Zeitzone soll es denn sein?\n' \
+                    f'Schreibe den ungefähren Namen der Zeitzone (Beispiel: **Europe/Berlin**)'
+        confirmed, _ = await timezone_interrogation.get_confirmation(question=question, abort_msg=abort_msg)
+        if confirmed:
+            await self.db.update_timezone(msg.user, default_tz)
+            return await msg.post(f'Alright, deine Zeitzone ist jetzt auf {default_tz} gesetzt!')
+
+        # choose a different timezone
+        timezone_guess = await timezone_interrogation.listen()
+        timezone: str = await self.__choose_timezone(timezone_interrogation, timezone_guess)
+        if not timezone:
+            return    # TODO do something, maybe throw an error
+        await self.db.update_timezone(msg.user, timezone)
+        return await msg.post(f'Alright, deine Zeitzone ist jetzt auf {default_tz} gesetzt!')
+
+
+    async def __choose_timezone(self, interaction: UserInteractionHandler, tz_guess: str) -> str | None:
+        # evaluates a "similarity score" between 0 and 100 for every timezone
+        # then sorts them descending by their score and returns the 5 best matching tuples
+        scores: Tuple[str, int] = process.extract(tz_guess, pytz.common_timezones, scorer=fuzz.partial_ratio, limit=5)
+
+        # TODO skip the following in case of a clear match (e.g. 100% but only ONE 100%)
+        tz_selection = f"Folgende Zeitzonen sind deiner Anfrage am ähnlichsten:\n" + "\n".join([str(i + 1) + ') ' + match[0] for i, match in enumerate(scores)])
+        await interaction.talk(tz_selection)
+        choose_one: str = f"Wähle eine dieser Zeitzonen, indem du mit der **entsprechenden Zahl** antwortest, oder gib {self.name} einen **neuen Suchbegriff**"
+        hint: str = "\n**Ok warte**, schau mal, hier findest du eine Liste aller Zeitzonen:\nhttps://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
+        response: str = await interaction.get_response(question=choose_one, hint_msg=hint, hint_on_try=3)
+
+        if not response:
+            return None     # something went wrong
+        index = response[0]
+        if index.isnumeric():
+            return scores[int(index) - 1][0]    # return the corresponding timezone
+        return await self.__choose_timezone(interaction, response)  # search again for string matches
 
 
     # returns an embed, listing all reminders that are currently in the database
@@ -291,7 +339,7 @@ class MyBot(d.Client):
         time = del_rem.due_date.time().isoformat(timespec='minutes')
 
         # get a confirmation from the user first before deleting
-        reminder_confirmation = ConfirmationPrompt(self, msg)
+        reminder_confirmation = UserInteractionHandler(self, msg)
         question = f'Reminder für <@!{del_rem.user_id}> am **{date}** um **{time}** mit dem Text:\n_{del_rem.memo}_\nwird nun **gelöscht**.' \
                    f'\nFortsetzen? (y/n)'
         abort_msg = f'Alles klar, der Reminder bleibt'
@@ -311,12 +359,14 @@ class MyBot(d.Client):
 
 
     # ToDo: handle time zones
-    # ToDo: let each user define their default time zone
-    # ToDo: let a user change their default time zone
+    # ToDo: let a user change their default time zone afterwards
+
+    # TODO: enable relative time intervals (1 day, 2 hours, etc.)
 
     # ToDo: Bugfix - what if there is no reminder in the database?
     # ToDo: Bugfix - Ensure that reminders also happen when they are missed by like up to 120 seconds
     # TODO: Bugfix - Incorrect reminder input
+    # TODO: Bugfix - multiple reminders at the exact same time (atm only one of them is being sent)
 
 
     @staticmethod  # this is only static so that the compiler shuts up at the execute_command()-call above
@@ -334,5 +384,5 @@ class MyBot(d.Client):
         # every function with entry in this dict must have 'self' parameter to work in execute_command call
     }
 
-
+# start the program
 asyncio.run(startup())

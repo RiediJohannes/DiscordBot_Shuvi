@@ -42,5 +42,5 @@ class MsgContainer(d.Message):
         self.options = list(filter(lambda word: word.startswith(option_prefix), self.words))    # filters out all the words that are marked as a command option
 
 
-    async def post(self, text, ttl=None, embed=None, file=None):
+    async def post(self, text=None, ttl=None, embed=None, file=None):
         await self.chat.send(text, embed=embed, file=file, delete_after=ttl)

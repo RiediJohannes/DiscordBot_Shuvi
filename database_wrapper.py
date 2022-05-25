@@ -3,6 +3,14 @@ from msg_container import MsgContainer
 from datetime import datetime
 
 
+class DBUser:
+    def __init__(self, user_id, user_name, discriminator, timezone):
+        self.id = user_id
+        self.name = user_name
+        self.hash = discriminator
+        self.tz = timezone
+
+
 class DatabaseWrapper:
 
     def __init__(self, database_connection):
@@ -64,6 +72,18 @@ class DatabaseWrapper:
         await self.database_connection.execute("DELETE FROM reminder WHERE date_time_zone < current_timestamp - INTERVAL '2 day';")
 
 
+    async def fetch_user_entry(self, user) -> DBUser | None:
+        user_entry = await self.database_connection.fetchrow(f"""
+            SELECT user_id, username, discriminator, time_zone
+            FROM users
+            WHERE user_id = {user.id};
+        """)
+        # if no user was found
+        if not user_entry:
+            return None
+        return DBUser(*user_entry)
+
+
     async def create_user_entry(self, user) -> None:
         # create an entry for the sender in the users() relation if there isn't one already
         await self.database_connection.execute(f"""
@@ -78,4 +98,12 @@ class DatabaseWrapper:
         await self.database_connection.execute(f"""
             INSERT INTO reminder(id, user_id, channel_id, date_time_zone, memo)
             VALUES(gen_random_uuid(), {msg.user.id}, {msg.chat.id}, '{timestamp}', '{memo}');
+        """)
+
+
+    async def update_timezone(self, user, timezone: str) -> None:
+        await self.database_connection.execute(f"""
+            UPDATE users
+            SET time_zone = '{timezone}'
+            WHERE user_id = {user.id};
         """)
