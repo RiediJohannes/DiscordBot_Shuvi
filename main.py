@@ -79,9 +79,23 @@ class MyBot(d.Client):
         # wait until the bot is ready
         await self.wait_until_ready()
 
+        # tz_guess = "Erope Berlin"
+        # scores: List[Tuple[str, int]] = process.extract(tz_guess, pytz.common_timezones, scorer=fuzz.partial_ratio, limit=20)
+        # infos = f"Folgende Zeitzonen sind deiner Anfrage am ähnlichsten:\n" + "\n".join([str(i + 1) + ') ' + match[0] + ', ' + str(match[1])
+        #                                                                                      for i, match in enumerate(scores)
+        #                                                                                     if i < 5 or match[1] == scores[0][1]])
+        # logger.info(infos)
+        # if len(infos) == 20:
+        #     print(f"\n...und weitere - bitte verwende einen genaueren Suchbegriff!")
+        # if (scores[0][1] == 100 and scores[1][1] < 100) or 0.8 * scores[0][1] > scores[1][1]:
+        #     print("Hurra!")
+
+
         while True:
             # check the time remaining until the next reminder is due
             due_date, time_remaining = await self.db.check_next_reminder()
+            # localize the due date to CET
+            due_date = due_date.astimezone(pytz.timezone('Europe/Berlin'))
 
             logger.info(f'Next reminder is due at: {due_date}')
             logger.info(f'Time left: {time_remaining} seconds')
@@ -125,7 +139,7 @@ class MyBot(d.Client):
 
         # check for command at message begin
         if msg.prefix == self.prefix:
-            print(f'Command: {msg.cmd} by {msg.user.name}')
+            logger.info(f"Command '{msg.cmd}' by {msg.user.name}")
             # call the respective function belonging to cmd; if cmd is invalid, return function for dict-key 'not_found'
             await self.execute_command.get(msg.cmd, self.execute_command['not_found'])(self, msg)
 
@@ -237,17 +251,21 @@ class MyBot(d.Client):
         if not confirmed:
             return
 
+        # fetch user data from the database
         user_data = await self.db.fetch_user_entry(user)
         if not user_data:
             # create an entry for the sender in the users() relation if there isn't one already
             await self.db.create_user_entry(user)
-            await self.__add_timezone(msg)
+            user_data.tz = await self.__add_timezone(msg)
         elif not user_data.tz:
-            await self.__add_timezone(msg)
+            # if the user hasn't defined a timezone yet, add one
+            user_data.tz = await self.__add_timezone(msg)
+
+        user_tz = pytz.timezone(user_data.tz)
+        timestamp_localized = user_tz.localize(timestamp)   # add timezone information to the timestamp
 
         # write the new reminder to the database
-        await self.db.push_reminder(msg, timestamp, memo)
-
+        await self.db.push_reminder(msg, timestamp_localized, memo)
         await msg.post(f'Reminder erfolgreich gesetzt! {self.name} wird dich wie gewünscht erinnern UwU')
 
         # the newly created reminder might be due earlier than the current next task, so we need to restart the watchdog
@@ -259,7 +277,7 @@ class MyBot(d.Client):
         asyncio.create_task(self.watch_reminders(), name='reminder_watchdog')
 
 
-    async def __add_timezone(self, msg: MsgContainer) -> None:
+    async def __add_timezone(self, msg: MsgContainer) -> str:
         default_tz = 'Europe/Berlin'
         timezone_interrogation = UserInteractionHandler(self, msg)
         question = f'Du hast noch nie deine Zeitzone angegeben.\n' \
@@ -269,34 +287,54 @@ class MyBot(d.Client):
         confirmed, _ = await timezone_interrogation.get_confirmation(question=question, abort_msg=abort_msg)
         if confirmed:
             await self.db.update_timezone(msg.user, default_tz)
-            return await msg.post(f'Alright, deine Zeitzone ist jetzt auf {default_tz} gesetzt!')
+            await msg.post(f'Alright, deine Zeitzone ist jetzt auf {default_tz} gesetzt!')
+            return default_tz
 
         # choose a different timezone
         timezone_guess = await timezone_interrogation.listen()
         timezone: str = await self.__choose_timezone(timezone_interrogation, timezone_guess)
         if not timezone:
-            return    # TODO do something, maybe throw an error
+            return default_tz   # TODO do something, maybe throw an error
         await self.db.update_timezone(msg.user, timezone)
-        return await msg.post(f'Alright, deine Zeitzone ist jetzt auf {default_tz} gesetzt!')
+        await msg.post(f'Alright, deine Zeitzone ist jetzt auf {timezone} gesetzt!')
+        return timezone
 
 
     async def __choose_timezone(self, interaction: UserInteractionHandler, tz_guess: str) -> str | None:
         # evaluates a "similarity score" between 0 and 100 for every timezone
-        # then sorts them descending by their score and returns the 5 best matching tuples
-        scores: Tuple[str, int] = process.extract(tz_guess, pytz.common_timezones, scorer=fuzz.partial_ratio, limit=5)
+        # then sorts them descending by their score and returns the 20 best matching tuples
+        scores: List[Tuple[str, int]] = process.extract(tz_guess, pytz.common_timezones, scorer=fuzz.partial_ratio, limit=20)
 
-        # TODO skip the following in case of a clear match (e.g. 100% but only ONE 100%)
-        tz_selection = f"Folgende Zeitzonen sind deiner Anfrage am ähnlichsten:\n" + "\n".join([str(i + 1) + ') ' + match[0] for i, match in enumerate(scores)])
+        # if the match is very clear, ask the user if that's the correct timezone
+        if (scores[0][1] == 100 and scores[1][1] < 100) or 0.8 * scores[0][1] > scores[1][1]:
+            question = f'Meintest du {scores[0][0]}? (y/n)'
+            abort_msg = f'Hm, dann lass mal schauen, was {self.name} sonst so findet...'
+            confirmed, _ = await interaction.get_confirmation(question=question, abort_msg=abort_msg)
+            if confirmed:
+                return scores[0][0]     # return the timezone that matched with the highest score
+            # if the user rejected our offer, continue with the usual timezone choosing procedure below
+
+        # let the user choose either one of those highest ranking timezones or search again with another string
+        tz_selection = f"Folgende Zeitzonen sind deiner Anfrage am ähnlichsten:\n" + \
+                       "\n".join([str(i + 1) + ') ' + match[0]    # '1) Europe/Berlin' (example)
+                                 for i, match in enumerate(scores)  # iterate through every element in the list
+                                 if i < 5 or match[1] == scores[0][1]])  # take the first 5, potentially more if they have the same score as the 1st element
+
+        if len(tz_selection) == 20:
+            tz_selection += "\n...und eventuell weitere - bitte verwende einen genaueren Suchbegriff!"
         await interaction.talk(tz_selection)
+
         choose_one: str = f"Wähle eine dieser Zeitzonen, indem du mit der **entsprechenden Zahl** antwortest, oder gib {self.name} einen **neuen Suchbegriff**"
-        hint: str = "\n**Ok warte**, schau mal, hier findest du eine Liste aller Zeitzonen:\nhttps://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
+        hint: str = "...\n**Ok warte**, schau mal, hier findest du eine Liste aller Zeitzonen:\nhttps://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
         response: str = await interaction.get_response(question=choose_one, hint_msg=hint, hint_on_try=3)
 
         if not response:
             return None     # something went wrong
         index = response[0]
+        # the user responded with a numbers (index of timezone)
         if index.isnumeric():
             return scores[int(index) - 1][0]    # return the corresponding timezone
+        # the user responded with another search term
         return await self.__choose_timezone(interaction, response)  # search again for string matches
 
 
@@ -345,7 +383,7 @@ class MyBot(d.Client):
         abort_msg = f'Alles klar, der Reminder bleibt'
         confirmed, num_of_messages = await reminder_confirmation.get_confirmation(question=question, abort_msg=abort_msg)
         if not confirmed:
-            return
+            return  # deletion aborted
         await self.db.delete_reminder(del_rem)
         return await msg.post("Reminder erfolgreich gelöscht!")
 
@@ -358,10 +396,12 @@ class MyBot(d.Client):
         return None
 
 
-    # ToDo: handle time zones
     # ToDo: let a user change their default time zone afterwards
 
+    # TODO: use discord timestamps for the reminder confirmation message
     # TODO: enable relative time intervals (1 day, 2 hours, etc.)
+
+    # ToDo: add a help command which explains every available command
 
     # ToDo: Bugfix - what if there is no reminder in the database?
     # ToDo: Bugfix - Ensure that reminders also happen when they are missed by like up to 120 seconds
