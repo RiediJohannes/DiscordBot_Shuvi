@@ -18,6 +18,13 @@ class UserInteractionHandler:
 
 
     async def get_confirmation(self, question: str, abort_msg: str, timeout_msg=None, retry_msg=None, enough_msg=None, retries=5) -> [bool, int]:
+        # keep all the kwargs for the recursive function call later
+        arguments = vars()
+        print(arguments)
+        del arguments['self']
+        print(arguments)
+        print(*arguments)
+
         # set the default message wherever there was no message given
         if retry_msg is None:
             retry_msg = self.default_retry_msg
@@ -62,8 +69,7 @@ class UserInteractionHandler:
                 await self.msg.post(retry_msg)
                 self.task_messages += 2  # the retry_msg and the user's previous reply -> 2 messages
                 # call this function recursively until a proper answer is given
-                return await self.get_confirmation(question=question, abort_msg=abort_msg, timeout_msg=timeout_msg,
-                                                   retry_msg=retry_msg), self.task_messages
+                return await self.get_confirmation(**arguments)
 
 
     async def get_response(self, question=None, timeout_msg=None, timeout=120.0, hint_msg=None, hint_on_try=3) -> str | None:

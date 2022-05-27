@@ -202,13 +202,15 @@ class MyBot(d.Client):
         # we also want the messages needed for the confirmation process to disappear
         remaining = number + extra_messages
 
-        if confirmed:
-            while remaining > 0:
-                deletion_stack = remaining if remaining <= 100 else 100  # 100 is the upper deletion limit set by discord's API
-                trashcan = await msg.chat.history(limit=deletion_stack).flatten()
-                await msg.chat.delete_messages(trashcan)
-                remaining -= deletion_stack
-            await msg.post(f'{number} Nachrichten gelöscht', ttl=5.0)
+        if confirmed is False:
+            return
+        # delete the requested count of messages
+        while remaining > 0:
+            deletion_stack = remaining if remaining <= 100 else 100  # 100 is the upper deletion limit set by discord's API
+            trashcan = await msg.chat.history(limit=deletion_stack).flatten()
+            await msg.chat.delete_messages(trashcan)
+            remaining -= deletion_stack
+        await msg.post(f'{number} Nachrichten gelöscht', ttl=5.0)
 
 
     async def set_reminder(self, msg: MsgContainer):
@@ -283,7 +285,7 @@ class MyBot(d.Client):
         question = f'Du hast noch nie deine Zeitzone angegeben.\n' \
                    f'Möchtest du die Standardzeitzone {default_tz} wählen? (y/n)'
         abort_msg = f'Na dann, welche Zeitzone soll es denn sein?\n' \
-                    f'Schreibe den ungefähren Namen der Zeitzone (Beispiel: **Europe/Berlin**)'
+                    f'Sag {self.name} den ungefähren Namen der Zeitzone, das sind meist Hauptstädte (Beispiel: **Europe/Berlin**)'
         confirmed, _ = await timezone_interrogation.get_confirmation(question=question, abort_msg=abort_msg)
         if confirmed:
             await self.db.update_timezone(msg.user, default_tz)
@@ -336,6 +338,39 @@ class MyBot(d.Client):
             return scores[int(index) - 1][0]    # return the corresponding timezone
         # the user responded with another search term
         return await self.__choose_timezone(interaction, response)  # search again for string matches
+
+
+    async def change_timezone(self, msg: MsgContainer) -> None:
+        # fetch data about the user from the database
+        user_data = await self.db.fetch_user_entry(msg.user)
+        if not user_data:
+            # create an entry for the sender in the users() relation if there isn't one already
+            await self.db.create_user_entry(msg.user)
+            user_data.tz = await self.__add_timezone(msg)
+            return
+        if not user_data.tz:
+            # if the user hasn't defined a timezone yet, add one
+            user_data.tz = await self.__add_timezone(msg)
+            return
+
+        # if we already have an entry for this user, and he chose a timezone before, they can change it
+        change_tz_interaction = UserInteractionHandler(self, msg)
+        question = f"Deine aktuelle Zeitzone lautet '{user_data.tz}'.\n" \
+                   f'Möchtest du deine Zeitzone anpassen? (y/n)'
+        abort_msg = f'Na dann :>'
+        confirmed, _ = await change_tz_interaction.get_confirmation(question=question, abort_msg=abort_msg)
+
+        if not confirmed:
+            return  # apparently the user didn't want to change his timezone
+        # let the user choose a new timezone
+        question = 'Soso, was möchtest du denn haben?\n' \
+                   f'Gib {self.name} den ungefähren Namen der Zeitzone, meist Hauptstädte (Beispiel: **Europe/Berlin**)'
+        timezone_guess = await change_tz_interaction.get_response(question=question)
+        timezone: str = await self.__choose_timezone(change_tz_interaction, timezone_guess)
+        if not timezone:
+            return await msg.post(f'Da ist wohl etwas schiefgegangen :/  {self.name} konnte deine Zeitzone leider nicht ändern')
+        await self.db.update_timezone(msg.user, timezone)
+        return await msg.post(f'Geschafft! {self.name} hat deine Zeitzone nun auf {timezone} gesetzt!')
 
 
     # returns an embed, listing all reminders that are currently in the database
@@ -424,6 +459,7 @@ class MyBot(d.Client):
         'wake': approaches,
         'spam': spam,
         'remindme': set_reminder,
+        'timezone': change_timezone,
         'not_found': not_found,
         # every function with entry in this dict must have 'self' parameter to work in execute_command call
     }
