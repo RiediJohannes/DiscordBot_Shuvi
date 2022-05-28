@@ -14,6 +14,7 @@ from fuzzywuzzy import fuzz, process
 from exceptions import *
 from reminder import Reminder
 from time_handler import TimeHandler
+from error_handler import ErrorHandler
 from msg_container import MsgContainer
 from user_interaction_handler import UserInteractionHandler
 from database_wrapper import DatabaseWrapper
@@ -52,6 +53,7 @@ async def startup():
 class MyBot(d.Client):
 
     def __init__(self, name="Bot", db=None, prefix='.', intents=None):
+        super().__init__(intents=intents)  # superclass discord.Client needs to be properly initialized as well
         self.name = name
         self.db = db
         self.prefix = prefix
@@ -60,7 +62,7 @@ class MyBot(d.Client):
         self.when_approached = ['Ja, was ist?', 'Ja?', 'Hm?', 'Was los', 'Zu Diensten!', 'Jo?', 'Hier', 'Was\'n?', 'Schon da',
                                 'Ich hör dir zu', 'So heiß ich']
         self.spam_done = ['So, genug gespammt!', 'Genug jetzt!', 'Das reicht jetzt aber wieder mal.', 'Und Schluss', 'Owari desu', 'Habe fertig']
-        super().__init__(intents=intents)  # superclass discord.Client needs to be properly initialized as well
+        self.error_handler = None
 
 
     # executes when bot setup is finished
@@ -71,6 +73,10 @@ class MyBot(d.Client):
         chat = self.get_channel(955511857156857949)
         await chat.send(self.name + ' ist nun hochgefahren!')
 
+        # setup ErrorHandler to process errors during runtime
+        debug_channel = self.get_channel(980170587643211856)
+        self.error_handler = ErrorHandler(logger, debug_channel)
+
         # remove long expired reminders from database
         await self.db.clean_up_reminders()
 
@@ -78,18 +84,6 @@ class MyBot(d.Client):
     async def watch_reminders(self):
         # wait until the bot is ready
         await self.wait_until_ready()
-
-        # tz_guess = "Erope Berlin"
-        # scores: List[Tuple[str, int]] = process.extract(tz_guess, pytz.common_timezones, scorer=fuzz.partial_ratio, limit=20)
-        # infos = f"Folgende Zeitzonen sind deiner Anfrage am ähnlichsten:\n" + "\n".join([str(i + 1) + ') ' + match[0] + ', ' + str(match[1])
-        #                                                                                      for i, match in enumerate(scores)
-        #                                                                                     if i < 5 or match[1] == scores[0][1]])
-        # logger.info(infos)
-        # if len(infos) == 20:
-        #     print(f"\n...und weitere - bitte verwende einen genaueren Suchbegriff!")
-        # if (scores[0][1] == 100 and scores[1][1] < 100) or 0.8 * scores[0][1] > scores[1][1]:
-        #     print("Hurra!")
-
 
         while True:
             # check the time remaining until the next reminder is due
@@ -140,8 +134,13 @@ class MyBot(d.Client):
         # check for command at message begin
         if msg.prefix == self.prefix:
             logger.info(f"Command '{msg.cmd}' by {msg.user.name}")
-            # call the respective function belonging to cmd; if cmd is invalid, return function for dict-key 'not_found'
-            await self.execute_command.get(msg.cmd, self.execute_command['not_found'])(self, msg)
+
+            try:
+                # call the respective function belonging to given cmd with arguments (self, msg);
+                # if cmd is invalid, return function for dict-key 'not_found'
+                await self.execute_command.get(msg.cmd, self.execute_command['not_found'])(self, msg)
+            except Exception as exp:
+                await self.error_handler.handle(exp, msg)
 
         # check for own name in message
         if self.name.casefold() in msg.lower_text:
@@ -225,14 +224,14 @@ class MyBot(d.Client):
                 await self.delete_reminder(msg)
             except AuthorizationException as exp:
                 await msg.post('Du kannst nicht einfach den Reminder von jemand anderem löschen, wtf?\n'
-                               '-- _{0} hat versucht den Reminder "{1}" von <@{2}> zu löschen._ --'.format(exp.accessor.display_name, exp.resource.memo, exp.owner))
+                               '-- _{0} hat versucht den Reminder "{1}" von <@{2}> zu löschen._ --'
+                               .format(exp.accessor.display_name, exp.resource.memo, exp.owner))
             except ReminderNotFoundException:
                 await msg.post(f'Aktuell scheint es gar keine anstehenden Reminder zu geben. Niemand nutzt {self.name}s Hilfe :(')
             except IndexOutOfBoundsException as exp:
                 await msg.post('{0}? Sorry aber so viele Reminder kennt {1} aktuell gar nicht'.format(exp.index + 1, self.name))
-            except InvalidArgumentsException:
-                await msg.post('Welchen Reminder möchtest du denn löschen? Mir fehlt da eine Nummer')
-                # TODO: maybe move this up to execute_command in the future
+            # except InvalidArgumentsException:
+            #     await msg.post('Welchen Reminder möchtest du denn löschen? Mir fehlt da eine Nummer')
             return
 
         reminder_filter = TimeHandler()
@@ -397,12 +396,12 @@ class MyBot(d.Client):
     async def delete_reminder(self, msg: MsgContainer) -> None | AuthorizationException | InvalidArgumentsException | IndexOutOfBoundsException:
         reminder_nr = self.__find_first_number(msg.words)
         if reminder_nr is None:
-            raise InvalidArgumentsException("Couldn't find a number in the command arguments", arguments=msg.words)
+            raise InvalidArgumentsException("Couldn't find a number in the command arguments", arguments=msg.words, cause=Cause.NOT_A_NUMBER)
 
         # fetch all upcoming reminders from the database and choose the one at the given index
         upcoming_reminders: List[Reminder] = await self.db.fetch_reminders()
         if not upcoming_reminders:
-            raise ReminderNotFoundException("There are no upcoming reminders at the moment")
+            raise ReminderNotFoundException("There are no upcoming reminders at the moment", cause=Cause.EMPTY_DB)
         if reminder_nr > len(upcoming_reminders):
             raise IndexOutOfBoundsException(f"Index {reminder_nr-1} not in scope of available reminders (length: {len(upcoming_reminders)})",
                                             index=reminder_nr-1, length=len(upcoming_reminders), collection=upcoming_reminders)
@@ -410,7 +409,8 @@ class MyBot(d.Client):
 
         # check if the reminder belongs to the user that wants to delete it
         if del_rem.user_id != msg.user.id:
-            raise AuthorizationException(f"User {msg.user.display_name} (id: {msg.user.id}) tried to delete a reminder of user {del_rem.user_id}!", accessor=msg.user, owner=del_rem.user_id, resource=del_rem)
+            raise AuthorizationException(f"User {msg.user.display_name} (id: {msg.user.id}) tried to delete a reminder of user {del_rem.user_id}!",
+                                         accessor=msg.user, owner=del_rem.user_id, resource=del_rem, cause=Cause.ILLEGAL_REMINDER_DELETION)
 
         date = del_rem.due_date.date().strftime('%d.%m.%Y')  # get the date in standardized format (dd.mm.yyyy)
         time = del_rem.due_date.time().isoformat(timespec='minutes')
@@ -435,12 +435,11 @@ class MyBot(d.Client):
         return None
 
 
-    # ToDo: let a user change their default time zone afterwards
-
     # TODO: use discord timestamps for the reminder confirmation message
     # TODO: enable relative time intervals (1 day, 2 hours, etc.)
 
     # ToDo: add a help command which explains every available command
+    # TODO: set the default channel and debug channel id as os variables!!
 
     # ToDo: Bugfix - what if there is no reminder in the database?
     # ToDo: Bugfix - Ensure that reminders also happen when they are missed by like up to 120 seconds
