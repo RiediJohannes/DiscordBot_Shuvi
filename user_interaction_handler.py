@@ -20,10 +20,10 @@ class UserInteractionHandler:
     async def get_confirmation(self, question: str, abort_msg: str, timeout_msg=None, retry_msg=None, enough_msg=None, retries=5) -> [bool, int]:
         # keep all the kwargs for the recursive function call later
         arguments = vars()
-        print(arguments)
+        # print(arguments)
         del arguments['self']
-        print(arguments)
-        print(*arguments)
+        # print(arguments)
+        # print(*arguments) # TODO remove these
 
         # set the default message wherever there was no message given
         if retry_msg is None:

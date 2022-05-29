@@ -1,6 +1,7 @@
 from reminder import Reminder
 from msg_container import MsgContainer
 from datetime import datetime
+from typing import Tuple
 
 
 class DBUser:
@@ -17,14 +18,20 @@ class DatabaseWrapper:
         self.database_connection = database_connection
 
 
-    async def check_next_reminder(self) -> [datetime, int]:
-        due_date, timeleft_epoch = await self.database_connection.fetchrow("""
+    async def check_next_reminder(self) -> Tuple[datetime, int] | Tuple[None, None]:
+        next_time_data: Tuple[datetime, str] = await self.database_connection.fetchrow("""
             SELECT MIN(rem.date_time_zone), EXTRACT(EPOCH FROM ( MIN(rem.date_time_zone) - current_timestamp) )
             FROM reminder rem
             WHERE rem.date_time_zone > current_timestamp;
         """)
-        # we add one to the time remaining because the reminders were always a fraction of a second to early
-        return [due_date, int(timeleft_epoch) + 1]
+
+        # apparently there are no upcoming reminders in the database atm
+        if not next_time_data:
+            return None, None
+
+        due_date, timeleft_epoch = next_time_data
+        # we add one to the time remaining because the reminders were always a fraction of a second too early
+        return due_date, int(timeleft_epoch) + 1
 
 
     async def fetch_next_reminder(self) -> Reminder:
@@ -97,6 +104,8 @@ class DatabaseWrapper:
 
 
     async def push_reminder(self, msg: MsgContainer, timestamp: datetime, memo: str) -> None:
+        # escape potential single quotes in the message (works in SQL by doubling up the single quotes)
+        memo = memo.replace("'", "''")
         # write the new reminder to the database
         await self.database_connection.execute(f"""
             INSERT INTO reminder(id, user_id, channel_id, date_time_zone, memo)

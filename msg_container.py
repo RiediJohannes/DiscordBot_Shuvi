@@ -1,5 +1,6 @@
 import discord as d
 
+
 class MsgContainer(d.Message):
 
     def __init__(self, msg: d.Message, option_prefix='-'):

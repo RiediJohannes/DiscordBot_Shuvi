@@ -1,6 +1,5 @@
 import asyncio
 import datetime
-
 import asyncpg
 import random
 import discord as d
@@ -75,7 +74,7 @@ class MyBot(d.Client):
 
         # setup ErrorHandler to process errors during runtime
         debug_channel = self.get_channel(980170587643211856)
-        self.error_handler = ErrorHandler(logger, debug_channel)
+        self.error_handler = ErrorHandler(self, logger, debug_channel)
 
         # remove long expired reminders from database
         await self.db.clean_up_reminders()
@@ -88,6 +87,11 @@ class MyBot(d.Client):
         while True:
             # check the time remaining until the next reminder is due
             due_date, time_remaining = await self.db.check_next_reminder()
+
+            if not due_date or not time_remaining:
+                logger.info(f'Currently no reminders in the DB. ReminderWatchdog is placed on hold until further notice')
+                break   # escape while loop
+
             # localize the due date to CET
             due_date = due_date.astimezone(pytz.timezone('Europe/Berlin'))
 
@@ -169,11 +173,11 @@ class MyBot(d.Client):
 
 
     # spams the channel with messages counting up to the number given as a parameter
-    async def spam(self, msg: MsgContainer):
+    async def spam(self, msg: MsgContainer) -> None:
         # takes the first number in the message
         number = int(next(filter(lambda word: word.isnumeric(), msg.words), 0))
         if not number:
-            return await msg.post("Eine Zahl wäre schön")
+            raise InvalidArgumentsException('No number of messages was given to spam', cause=Cause.NOT_A_NUMBER, goal=Goal.SPAM, arguments=msg.words)
         for i in range(number):
             await msg.post(i + 1)
             # after every five messages, run the typing animation, as the bot has to wait until the HTTP-POST rate limit bucket has refilled
@@ -212,27 +216,19 @@ class MyBot(d.Client):
         await msg.post(f'{number} Nachrichten gelöscht', ttl=5.0)
 
 
-    async def set_reminder(self, msg: MsgContainer):
+    async def set_reminder(self, msg: MsgContainer) -> None | ReminderNotFoundException:
         # option 1: the user just wanted to see the upcoming reminders
         if '-s' in msg.options or '-show' in msg.options:
-            report_msg, embed = await self.show_reminders(msg)
-            return await msg.post(report_msg, embed=embed)
+            embed = await self.show_reminders(msg)
+            return await msg.post(embed=embed)
 
         # option 2: the user wants to delete a reminder
         if '-d' in msg.options or '-delete' in msg.options:
-            try:
-                await self.delete_reminder(msg)
-            except AuthorizationException as exp:
-                await msg.post('Du kannst nicht einfach den Reminder von jemand anderem löschen, wtf?\n'
-                               '-- _{0} hat versucht den Reminder "{1}" von <@{2}> zu löschen._ --'
-                               .format(exp.accessor.display_name, exp.resource.memo, exp.owner))
-            except ReminderNotFoundException:
-                await msg.post(f'Aktuell scheint es gar keine anstehenden Reminder zu geben. Niemand nutzt {self.name}s Hilfe :(')
-            except IndexOutOfBoundsException as exp:
-                await msg.post('{0}? Sorry aber so viele Reminder kennt {1} aktuell gar nicht'.format(exp.index + 1, self.name))
-            # except InvalidArgumentsException:
-            #     await msg.post('Welchen Reminder möchtest du denn löschen? Mir fehlt da eine Nummer')
-            return
+            return await self.delete_reminder(msg)
+
+        # if (arg_count := len(msg.words)) < 3:
+        #     raise InvalidArgumentsException(f"set_reminder expects 3 arguments, got only {arg_count}", cause=Cause.INSUFFICIENT_ARGUMENTS,
+        #                                     arguments=msg.text, expected=3, got=arg_count)
 
         reminder_filter = TimeHandler()
         timestamp: datetime.datetime = reminder_filter.get_timestamp(msg)
@@ -295,7 +291,7 @@ class MyBot(d.Client):
         timezone_guess = await timezone_interrogation.listen()
         timezone: str = await self.__choose_timezone(timezone_interrogation, timezone_guess)
         if not timezone:
-            return default_tz   # TODO do something, maybe throw an error
+            raise FruitlessChoosingException(f"Failed to select a timezone for the user {msg.user.display_name}, most likely due to a timeout", cause=Cause(0))
         await self.db.update_timezone(msg.user, timezone)
         await msg.post(f'Alright, deine Zeitzone ist jetzt auf {timezone} gesetzt!')
         return timezone
@@ -330,7 +326,7 @@ class MyBot(d.Client):
         response: str = await interaction.get_response(question=choose_one, hint_msg=hint, hint_on_try=3)
 
         if not response:
-            return None     # something went wrong
+            return None     # something went wrong, perhaps a TimeOut
         index = response[0]
         # the user responded with a numbers (index of timezone)
         if index.isnumeric():
@@ -373,14 +369,14 @@ class MyBot(d.Client):
 
 
     # returns an embed, listing all reminders that are currently in the database
-    async def show_reminders(self, msg: MsgContainer) -> [str, d.Embed]:
+    async def show_reminders(self, msg: MsgContainer) -> d.Embed | ReminderNotFoundException:
         # get a list of channel_ids for all channels on the message's server
         channel_list = [str(channel.id) for channel in msg.server.text_channels]
 
         # fetch a list of upcoming reminders on this server from the database
         next_reminders: List[Reminder] = await self.db.fetch_reminders(channels=channel_list)
         if not next_reminders:  # empty list -> no reminders found in the database
-            return 'Aktuell steht kein Reminder in der Zukunft an', None    # no embed (2nd return value)
+            raise ReminderNotFoundException('There are no upcoming reminders at the moment', cause=Cause.EMPTY_DB)
 
         # create an embed to neatly display the upcoming reminders
         reminder_embed = d.Embed(title="Die nächsten Reminder sind...", color=0x660000)
@@ -388,7 +384,7 @@ class MyBot(d.Client):
             user = self.get_user(rem.user_id)
             reminder_embed.add_field(name=f'({i+1})  {rem.due_date.strftime("%d.%m.%Y, %H:%M")} an {user.display_name}:', value=rem.memo, inline=False)
         reminder_embed.set_footer(text='Tipp: Verwende ".remindme -d <Nummer>", um den\nReminder mit gegebener Nummer zu löschen')
-        return None, reminder_embed  # no string message (1st return value)
+        return reminder_embed
 
 
     # deletes the reminder with the given index (ordinal number, ordered by due_date) from the database
@@ -396,7 +392,7 @@ class MyBot(d.Client):
     async def delete_reminder(self, msg: MsgContainer) -> None | AuthorizationException | InvalidArgumentsException | IndexOutOfBoundsException:
         reminder_nr = self.__find_first_number(msg.words)
         if reminder_nr is None:
-            raise InvalidArgumentsException("Couldn't find a number in the command arguments", arguments=msg.words, cause=Cause.NOT_A_NUMBER)
+            raise InvalidArgumentsException("Couldn't find a number in the command arguments", arguments=msg.words, cause=Cause.NOT_A_NUMBER, goal=Goal.REMINDER_DEL)
 
         # fetch all upcoming reminders from the database and choose the one at the given index
         upcoming_reminders: List[Reminder] = await self.db.fetch_reminders()
@@ -436,14 +432,13 @@ class MyBot(d.Client):
 
 
     # TODO: use discord timestamps for the reminder confirmation message
-    # TODO: enable relative time intervals (1 day, 2 hours, etc.)
+    # TODO: enable the use of relative time intervals (1 day, 2 hours, etc.)
 
     # ToDo: add a help command which explains every available command
+    # TODO: use JSON for every text string of the bot
     # TODO: set the default channel and debug channel id as os variables!!
 
-    # ToDo: Bugfix - what if there is no reminder in the database?
     # ToDo: Bugfix - Ensure that reminders also happen when they are missed by like up to 120 seconds
-    # TODO: Bugfix - Incorrect reminder input
     # TODO: Bugfix - multiple reminders at the exact same time (atm only one of them is being sent)
 
 
@@ -462,6 +457,7 @@ class MyBot(d.Client):
         'not_found': not_found,
         # every function with entry in this dict must have 'self' parameter to work in execute_command call
     }
+
 
 # start the program
 asyncio.run(startup())
