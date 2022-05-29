@@ -149,12 +149,12 @@ class MyBot(d.Client):
         # check for own name in message
         if self.name.casefold() in msg.lower_text:
             # generate appropriate response
-            response = await self.react_to_name(msg)
+            response = await self.__react_to_name(msg)
             await msg.post(response)
 
 
     # defines reaction to when a user message includes the bot's name (content of self.name)
-    async def react_to_name(self, msg: MsgContainer) -> str:
+    async def __react_to_name(self, msg: MsgContainer) -> str:
         # check if there is a greeting inside the message
         for word in self.greetings:
             if word.casefold() in msg.lower_text:
@@ -167,9 +167,32 @@ class MyBot(d.Client):
 
 
     # separate function (to greet or react on approach) to be called on .wake command.
-    async def approaches(self, msg: MsgContainer):
-        response = await self.react_to_name(msg)
+    async def approached(self, msg: MsgContainer):
+        response = await self.__react_to_name(msg)
         await msg.post(response)
+
+
+    async def info(self, msg: MsgContainer):
+        help_embed = d.Embed(title="Hier findest du einen Überblick über alle Kommandos:", color=0x660000)
+
+        method_dict = {
+            'help': "Erhalte eine Übersicht über alle Kommandos.",  # "Auch als Option -h oder -help für jedes Kommando verfügbar"
+            'wake': f"Stubse {self.name} kurz an, um zu sehen, ob sie noch da ist",
+            'delete <anzahl>': "Lösche eine bestimmte _Anzahl_ von zuletzt gesendeten Nachrichten im aktuellen Chat. Auch jegliche Spuren des Löschvorgangs werden anschließend beseitigt.\n",
+            'spam <anzahl>': f"Lass {self.name} den aktuellen Chat mit einer bestimmten _Anzahl von Nachrichten_ vollspammen.",
+            'remindme <datum> <uhrzeit> "<nachricht>"': f"Setze einen Reminder mit einer bestimmten _Nachricht_. {self.name} wird dich dann am gewählten _Datum_ zur gewünschten _Zeit_ erinnern.\n"
+                                                        f"Verwende für das Datum die europäische Reihenfolge (dd.mm.yyyy), für die Uhrzeit die 24h-Uhr und setze deine Nachricht an Anführungszeichen.\n"
+                                                        f"Die Reihenfolge der Argumente ist jedoch egal.",
+            'remindme -s | -show': "Erhalte eine Übersicht über alle anstehenden Reminder auf dem aktuellen Server.",
+            'remindme -d | -delete <nummer>': f"Lösche den anstehenden Reminder mit einer bestimmten Nummer. Um die Nummer deines gesuchten Reminders zu erfahren, probier mal das"
+                                              f"{self.prefix}remindme -show Kommando aus. Du kannst aber logischerweise nur deinen eigenen Reminder löschen.",
+            'timezone': "Lass dir deine derzeit gewählte Zeitzone anzeigen und ändere sie bei Bedarf.",
+        }
+        for name, description in method_dict.items():
+            help_embed.add_field(name=self.prefix + name, value=description, inline=False)
+
+        # help_embed.set_footer(text='Tipp: Du kannst auch ".command -h" schreiben, um eine\n detaillierte Hilfe nur zu diesem Kommando zu erhalten')
+        return await msg.post(embed=help_embed)
 
 
     # spams the channel with messages counting up to the number given as a parameter
@@ -431,15 +454,27 @@ class MyBot(d.Client):
         return None
 
 
+    # reminders
     # TODO: use discord timestamps for the reminder confirmation message
-    # TODO: enable the use of relative time intervals (1 day, 2 hours, etc.)
+    # TODO: enable the use of relative time intervals (1 day, 2 hours, etc.) when setting a reminder
+    # TODO: don't allow reminders to be set for a datetime in the past
 
+    # general improvements
     # ToDo: add a help command which explains every available command
+    # TODO: add a help option (-h or -help) to every command
     # TODO: use JSON for every text string of the bot
+    # TODO: add function that simplifies picking a specific JSON line and automatically chooses a random one if source is a list
     # TODO: set the default channel and debug channel id as os variables!!
 
+    # delete command
+    # TODO: check user rights when deleting messages
+    # TODO: add option to only delete messages of the calling user
+    # TODO: prevent deleting in private channels, as it is not possible
+
+    # bugs
     # ToDo: Bugfix - Ensure that reminders also happen when they are missed by like up to 120 seconds
     # TODO: Bugfix - multiple reminders at the exact same time (atm only one of them is being sent)
+    # TODO: Bugfix - .remindme -show does not work in private channels
 
 
     @staticmethod  # this is only static so that the compiler shuts up at the execute_command()-call above
@@ -449,8 +484,9 @@ class MyBot(d.Client):
 
     # dictionary to map respective function to command
     execute_command = {
+        'help': info,
         'delete': delete,
-        'wake': approaches,
+        'wake': approached,
         'spam': spam,
         'remindme': set_reminder,
         'timezone': change_timezone,
