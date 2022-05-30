@@ -18,15 +18,24 @@ class Goal(Enum):
     REMINDER_DEL = 1
     REMINDER_SET = 2
     SPAM = 3
+    HELP = 4
 
 
 class BotBaseException(Exception):
 
-    def __init__(self, error_msg: str, args, kwargs, cause=Cause(0)):
+    def __init__(self, error_msg: str, args, kwargs, *, cause=Cause(0), goal=Goal(0)):
         self.err = error_msg
         self.cause = cause
+        self.goal = goal
         self.arglist = args
         self.kwarglist = kwargs
+
+
+class UnknownCommandException(BotBaseException):
+
+    def __init__(self, err_message: str, goal: Goal, *args, command: str, **kwargs):
+        super().__init__(err_message, args, kwargs, goal=goal)
+        self.cmd = command
 
 
 class AuthorizationException(BotBaseException):

@@ -40,6 +40,12 @@ class ErrorHandler:
         # default message if an unknown error occurred
         feedback = 'Ups, hier hat irgendwas nicht ganz geklappt .-.'
 
+        if isinstance(exp, UnknownCommandException):
+            if exp.goal == Goal.HELP:
+                feedback = f"Es gibt kein Kommando '{exp.cmd}' du kek"
+            else:
+                feedback = f'Dieses Kommando kennt {self.bot.name} leider nicht :/'
+
         if isinstance(exp, AuthorizationException):
             feedback = 'Du kannst nicht einfach den Reminder von jemand anderem löschen, wtf?\n' \
                        '-- _{0} hat versucht den Reminder "{1}" von <@{2}> zu löschen._ --' \

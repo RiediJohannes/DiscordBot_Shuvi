@@ -61,6 +61,20 @@ class MyBot(d.Client):
         self.when_approached = ['Ja, was ist?', 'Ja?', 'Hm?', 'Was los', 'Zu Diensten!', 'Jo?', 'Hier', 'Was\'n?', 'Schon da',
                                 'Ich hör dir zu', 'So heiß ich']
         self.spam_done = ['So, genug gespammt!', 'Genug jetzt!', 'Das reicht jetzt aber wieder mal.', 'Und Schluss', 'Owari desu', 'Habe fertig']
+        self.method_dict = {
+            'help': "Erhalte eine Übersicht über alle Kommandos.\n"
+                    "Auch als Option -h oder -help für jedes Kommando verfügbar",
+            'wake': f"Stubse {self.name} kurz an, um zu sehen, ob sie noch da ist",
+            'delete <anzahl>': "Lösche eine bestimmte _Anzahl_ von zuletzt gesendeten Nachrichten im aktuellen Chat. Auch jegliche Spuren des Löschvorgangs werden anschließend beseitigt.\n",
+            'spam <anzahl>': f"Lass {self.name} den aktuellen Chat mit einer bestimmten _Anzahl von Nachrichten_ vollspammen.",
+            'remindme <datum> <uhrzeit> "<nachricht>"': f"Setze einen Reminder mit einer bestimmten _Nachricht_. {self.name} wird dich dann am gewählten _Datum_ zur gewünschten _Zeit_ erinnern.\n"
+                                                        f"Verwende für das Datum die europäische Reihenfolge (dd.mm.yyyy), für die Uhrzeit die 24h-Uhr und setze deine Nachricht an Anführungszeichen.\n"
+                                                        f"Die Reihenfolge der Argumente ist jedoch egal.",
+            'remindme -s | -show': "Erhalte eine Übersicht über alle anstehenden Reminder auf dem aktuellen Server.",
+            'remindme -d | -delete <nummer>': f"Lösche den anstehenden Reminder mit einer bestimmten Nummer. Um die Nummer deines gesuchten Reminders zu erfahren, probier mal das"
+                                              f"{self.prefix}remindme -show Kommando aus. Du kannst aber logischerweise nur deinen eigenen Reminder löschen.",
+            'timezone': "Lass dir deine derzeit gewählte Zeitzone anzeigen und ändere sie bei Bedarf.",
+        }
         self.error_handler = None
 
 
@@ -140,14 +154,20 @@ class MyBot(d.Client):
             logger.info(f"Command '{msg.cmd}' by {msg.user.name}")
 
             try:
+                # only show the help info for a given command
+                if '-h' in msg.words or '-help' in msg.words:
+                    return await self.__get_command_info(msg)
+
                 # call the respective function belonging to given cmd with arguments (self, msg);
                 # if cmd is invalid, return function for dict-key 'not_found'
                 await self.execute_command.get(msg.cmd, self.execute_command['not_found'])(self, msg)
+
             except Exception as exp:
+                # forward any exception during the execution of a command to the ErrorHandler
                 await self.error_handler.handle(exp, msg)
 
         # check for own name in message
-        if self.name.casefold() in msg.lower_text:
+        if self.name.casefold() in msg.text:
             # generate appropriate response
             response = await self.__react_to_name(msg)
             await msg.post(response)
@@ -157,7 +177,7 @@ class MyBot(d.Client):
     async def __react_to_name(self, msg: MsgContainer) -> str:
         # check if there is a greeting inside the message
         for word in self.greetings:
-            if word.casefold() in msg.lower_text:
+            if word.casefold() in msg.text:
                 return f'{random.choice(self.greetings)} {msg.user.display_name}!'
 
         # add another possible reaction at runtime: the name of the sender
@@ -173,26 +193,29 @@ class MyBot(d.Client):
 
 
     async def info(self, msg: MsgContainer):
-        help_embed = d.Embed(title="Hier findest du einen Überblick über alle Kommandos:", color=0x660000)
+        help_embed = d.Embed(title="Hier findest du einen Überblick über alle Kommandos:", color=0x008800)
 
-        method_dict = {
-            'help': "Erhalte eine Übersicht über alle Kommandos.",  # "Auch als Option -h oder -help für jedes Kommando verfügbar"
-            'wake': f"Stubse {self.name} kurz an, um zu sehen, ob sie noch da ist",
-            'delete <anzahl>': "Lösche eine bestimmte _Anzahl_ von zuletzt gesendeten Nachrichten im aktuellen Chat. Auch jegliche Spuren des Löschvorgangs werden anschließend beseitigt.\n",
-            'spam <anzahl>': f"Lass {self.name} den aktuellen Chat mit einer bestimmten _Anzahl von Nachrichten_ vollspammen.",
-            'remindme <datum> <uhrzeit> "<nachricht>"': f"Setze einen Reminder mit einer bestimmten _Nachricht_. {self.name} wird dich dann am gewählten _Datum_ zur gewünschten _Zeit_ erinnern.\n"
-                                                        f"Verwende für das Datum die europäische Reihenfolge (dd.mm.yyyy), für die Uhrzeit die 24h-Uhr und setze deine Nachricht an Anführungszeichen.\n"
-                                                        f"Die Reihenfolge der Argumente ist jedoch egal.",
-            'remindme -s | -show': "Erhalte eine Übersicht über alle anstehenden Reminder auf dem aktuellen Server.",
-            'remindme -d | -delete <nummer>': f"Lösche den anstehenden Reminder mit einer bestimmten Nummer. Um die Nummer deines gesuchten Reminders zu erfahren, probier mal das"
-                                              f"{self.prefix}remindme -show Kommando aus. Du kannst aber logischerweise nur deinen eigenen Reminder löschen.",
-            'timezone': "Lass dir deine derzeit gewählte Zeitzone anzeigen und ändere sie bei Bedarf.",
-        }
-        for name, description in method_dict.items():
+        for name, description in self.method_dict.items():
             help_embed.add_field(name=self.prefix + name, value=description, inline=False)
 
-        # help_embed.set_footer(text='Tipp: Du kannst auch ".command -h" schreiben, um eine\n detaillierte Hilfe nur zu diesem Kommando zu erhalten')
+        help_embed.set_footer(text='Tipp: Du kannst auch ".command -h" schreiben, um eine\n detaillierte Hilfe nur zu diesem Kommando zu erhalten')
         return await msg.post(embed=help_embed)
+
+
+    async def __get_command_info(self, msg: MsgContainer):
+        # get a list of every signature for the given command
+        cmd_info = [(signature, description) for signature, description in self.method_dict.items() if msg.cmd + ' ' in signature.lower()]
+
+        # check if cmd_info is empty -> there is no command with the given name
+        if not cmd_info:
+            raise UnknownCommandException(f"Couldn't find a command with the name {msg.cmd}", command=msg.cmd, goal=Goal.HELP)
+
+        cmd_embed = d.Embed(title=f'{msg.cmd.capitalize()} command:', color=0x008800)
+        # add a field for every usage (every signature) of the given command
+        for signature, description in cmd_info:
+            cmd_embed.add_field(name=self.prefix + signature, value=description, inline=False)
+
+        return await msg.post(embed=cmd_embed)
 
 
     # spams the channel with messages counting up to the number given as a parameter
@@ -460,8 +483,6 @@ class MyBot(d.Client):
     # TODO: don't allow reminders to be set for a datetime in the past
 
     # general improvements
-    # ToDo: add a help command which explains every available command
-    # TODO: add a help option (-h or -help) to every command
     # TODO: use JSON for every text string of the bot
     # TODO: add function that simplifies picking a specific JSON line and automatically chooses a random one if source is a list
     # TODO: set the default channel and debug channel id as os variables!!
@@ -479,7 +500,7 @@ class MyBot(d.Client):
 
     @staticmethod  # this is only static so that the compiler shuts up at the execute_command()-call above
     async def not_found(self, msg: MsgContainer):
-        await msg.post(f'Dieses Kommando kennt {self.name} leider nicht :/')
+        raise UnknownCommandException(f"Couldn't find command with the name {msg.cmd}", command=msg.cmd, goal=Goal(0))
 
 
     # dictionary to map respective function to command

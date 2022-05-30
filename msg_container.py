@@ -27,8 +27,8 @@ class MsgContainer(d.Message):
 
         # renamed attributes
         self.user = msg.author
-        self.text = msg.content
-        self.lower_text = msg.content.casefold()
+        self.original_text = msg.content
+        self.text = msg.content.casefold()
         self.chat = msg.channel
         self.server = msg.guild
 
@@ -40,7 +40,7 @@ class MsgContainer(d.Message):
             self.words = msg.content.casefold().split()[1:]  # splits the rest of the message into an array of distinct words (splits at each whitespace)
         else:
             self.cmd = None     # there was no command given
-            self.words = msg.content.split()    # splits the message into an array of distinct words (splits at each whitespace)
+            self.words = msg.content.casefold().split()    # splits the message into an array of distinct words (splits at each whitespace)
 
         self.options = list(filter(lambda word: word.startswith(option_prefix), self.words))    # filters out all the words that are marked as a command option
 
