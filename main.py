@@ -11,23 +11,14 @@ from typing import List, Tuple
 from logger import CustomFormatter
 from fuzzywuzzy import fuzz, process
 from exceptions import *
-from reminder import Reminder
 from time_handler import TimeHandler
 from error_handler import ErrorHandler
 from msg_container import MsgContainer
 from user_interaction_handler import UserInteractionHandler
-from database_wrapper import DatabaseWrapper
+from database_wrapper import DatabaseWrapper, DBUser, Reminder
 
 
-handler = logging.StreamHandler()
-handler.setFormatter(CustomFormatter())
-
-logger = logging.getLogger('discord')
-logger.addHandler(handler)
-logger.setLevel(logging.INFO)
-
-
-async def startup():
+async def __startup():
 
     # setup connection to heroku postgres database
     database_connection = await asyncpg.create_pool(os.environ.get("DATABASE_URL", None), max_size=5, min_size=3)
@@ -47,6 +38,16 @@ async def startup():
     finally:
         await database_connection.close()
         await bot.close()
+
+
+def __init_logs():
+    handler = logging.StreamHandler()
+    handler.setFormatter(CustomFormatter())
+
+    logs = logging.getLogger('discord')
+    logs.addHandler(handler)
+    logs.setLevel(logging.INFO)
+    return logs
 
 
 class MyBot(d.Client):
@@ -517,4 +518,6 @@ class MyBot(d.Client):
 
 
 # start the program
-asyncio.run(startup())
+if __name__ == '__main__':
+    logger = __init_logs()
+    asyncio.run(__startup())

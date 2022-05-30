@@ -1,9 +1,6 @@
 import re
 from datetime import datetime
 from exceptions import *
-
-import pytz
-
 from msg_container import MsgContainer
 
 

@@ -1,4 +1,3 @@
-from reminder import Reminder
 from msg_container import MsgContainer
 from datetime import datetime
 from typing import Tuple
@@ -10,6 +9,22 @@ class DBUser:
         self.name = user_name
         self.hash = discriminator
         self.tz = timezone
+
+    def __str__(self):
+        return f'User {self.name}#{self.hash} (id = {self.id})'
+
+
+class Reminder:
+
+    def __init__(self, rem_id, user_id=178992018788188162, channel_id=955511857156857949, due_date=None, memo='Keine Nachricht spezifiziert'):
+        self.rem_id = rem_id
+        self.user_id = user_id   # defaults to my account 'Luigi-Fan'
+        self.channel_id = channel_id    # defaults to 'bot' channel on my private 'SR388' server
+        self.memo = memo
+        self.due_date = due_date
+
+    def __str__(self):
+        return f'Reminder for user {self.user_id} at {self.due_date} (id = {self.rem_id})'
 
 
 class DatabaseWrapper:
