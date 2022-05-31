@@ -1,7 +1,7 @@
 import traceback as tb
 import inspect    # my_stack = inspect.stack()
 from logging import Logger
-from exceptions import *
+from errors import *
 from msg_container import MsgContainer
 
 

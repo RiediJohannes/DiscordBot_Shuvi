@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-from exceptions import *
+from errors import *
 from msg_container import MsgContainer
 
 

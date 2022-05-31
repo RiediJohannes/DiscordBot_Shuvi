@@ -10,9 +10,9 @@ import pytz
 from typing import List, Tuple
 from logger import CustomFormatter
 from fuzzywuzzy import fuzz, process
-from exceptions import *
-from time_handler import TimeHandler
+from errors import *
 from error_handler import ErrorHandler
+from time_handler import TimeHandler
 from msg_container import MsgContainer
 from user_interaction_handler import UserInteractionHandler
 from database_wrapper import DatabaseWrapper, Reminder
@@ -520,4 +520,5 @@ class MyBot(d.Client):
 # start the program
 if __name__ == '__main__':
     logger = __init_logs()
+    # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(__startup())
