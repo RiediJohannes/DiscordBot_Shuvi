@@ -15,7 +15,7 @@ from time_handler import TimeHandler
 from error_handler import ErrorHandler
 from msg_container import MsgContainer
 from user_interaction_handler import UserInteractionHandler
-from database_wrapper import DatabaseWrapper, DBUser, Reminder
+from database_wrapper import DatabaseWrapper, Reminder
 
 
 async def __startup():
@@ -277,17 +277,17 @@ class MyBot(d.Client):
         #     raise InvalidArgumentsException(f"set_reminder expects 3 arguments, got only {arg_count}", cause=Cause.INSUFFICIENT_ARGUMENTS,
         #                                     arguments=msg.text, expected=3, got=arg_count)
 
+        # parse memo and timestamp from user message
         reminder_filter = TimeHandler()
         timestamp: datetime.datetime = reminder_filter.get_timestamp(msg)
         memo: str = reminder_filter.get_memo(msg)
 
-        date = timestamp.date().strftime('%d.%m.%Y')    # get the date in standardized format (dd.mm.yyyy)
-        time = timestamp.time().isoformat(timespec='minutes')   # get the time in standardized format (hh:mm)
         user = msg.user
+        epoch = round(timestamp.timestamp())    # convert timestamp to UNIX epoch in order to display them as discord timestamp
 
         # get a confirmation from the user first before deleting
         reminder_confirmation = UserInteractionHandler(self, msg)
-        question = f'Reminder für <@!{user.id}> am **{date}** um **{time}** mit dem Text:\n_{memo}_\nPasst das so? (y/n)'
+        question = f'Reminder für <@!{user.id}> am **<t:{epoch}:d>** um **<t:{epoch}:t>** mit dem Text:\n_{memo}_\nPasst das so? (y/n)'
         abort_msg = f'Na dann, lassen wir das'
         confirmed, num = await reminder_confirmation.get_confirmation(question=question, abort_msg=abort_msg)
 
@@ -429,7 +429,8 @@ class MyBot(d.Client):
         reminder_embed = d.Embed(title="Die nächsten Reminder sind...", color=0x660000)
         for i, rem in enumerate(next_reminders):
             user = self.get_user(rem.user_id)
-            reminder_embed.add_field(name=f'({i+1})  {rem.due_date.strftime("%d.%m.%Y, %H:%M")} an {user.display_name}:', value=rem.memo, inline=False)
+            epoch = round(rem.due_date.timestamp())
+            reminder_embed.add_field(name=f'({i+1}) <t:{epoch}:d>, <t:{epoch}:t> an {user.display_name}:', value=rem.memo, inline=False)
         reminder_embed.set_footer(text='Tipp: Verwende ".remindme -d <Nummer>", um den\nReminder mit gegebener Nummer zu löschen')
         return reminder_embed
 
@@ -479,7 +480,6 @@ class MyBot(d.Client):
 
 
     # reminders
-    # TODO: use discord timestamps for the reminder confirmation message
     # TODO: enable the use of relative time intervals (1 day, 2 hours, etc.) when setting a reminder
     # TODO: don't allow reminders to be set for a datetime in the past
 
