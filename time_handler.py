@@ -45,7 +45,7 @@ class TimeHandler:
 
     # finds the message in quotes inside the message and returns it
     def get_memo(self, msg: MsgContainer):
-        memo = re.search(self.memo_pattern, msg.text)
+        memo = re.search(self.memo_pattern, msg.original_text)
         if memo:
             return memo.group()
         return 'Keine Nachricht spezifiziert'

@@ -1,27 +1,28 @@
+import uuid
+from dataclasses import dataclass
 from msg_container import MsgContainer
 from datetime import datetime
 from typing import Tuple
 
 
+@dataclass(frozen=True)
 class DBUser:
-    def __init__(self, user_id, user_name, discriminator, timezone):
-        self.id = user_id
-        self.name = user_name
-        self.hash = discriminator
-        self.tz = timezone
+    id: int     # user id on discord
+    name: str   # username
+    hash: str   # user identifier (digits after hashtag in name)
+    tz: str     # default timezone
 
     def __str__(self):
         return f'User {self.name}#{self.hash} (id = {self.id})'
 
 
+@dataclass(frozen=True)
 class Reminder:
-
-    def __init__(self, rem_id, user_id=178992018788188162, channel_id=955511857156857949, due_date=None, memo='Keine Nachricht spezifiziert'):
-        self.rem_id = rem_id
-        self.user_id = user_id   # defaults to my account 'Luigi-Fan'
-        self.channel_id = channel_id    # defaults to 'bot' channel on my private 'SR388' server
-        self.memo = memo
-        self.due_date = due_date
+    rem_id: uuid.UUID
+    user_id: int = 178992018788188162       # defaults to my account 'Luigi-Fan'
+    channel_id: int = 955511857156857949    # defaults to 'bot' channel on my private 'SR388' server
+    due_date: datetime = None
+    memo: str = 'Keine Nachricht spezifiziert'
 
     def __str__(self):
         return f'Reminder for user {self.user_id} at {self.due_date} (id = {self.rem_id})'
