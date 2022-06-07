@@ -58,7 +58,7 @@ class MyBot(d.Client):
         self.db = db
         self.prefix = prefix
 
-        self.greetings = ['Hallo', 'Hey', 'Hi', 'Hoi', 'Servus', 'Moin', 'Zeawas', 'Seawas', 'Heile', 'Grüezi', 'Ohayou', 'Yahallo']
+        self.greetings = ['Hallo', 'Hey', 'Hi', 'Hoi', 'Servus', 'Moin', 'Zeawas', 'Seawas', 'Heile', 'Grüezi', 'Ohayou', 'Yahallo', 'Merhaba']
         self.when_approached = ['Ja, was ist?', 'Ja?', 'Hm?', 'Was los', 'Zu Diensten!', 'Jo?', 'Hier', 'Was\'n?', 'Schon da',
                                 'Ich hör dir zu', 'So heiß ich']
         self.spam_done = ['So, genug gespammt!', 'Genug jetzt!', 'Das reicht jetzt aber wieder mal.', 'Und Schluss', 'Owari desu', 'Habe fertig']
@@ -284,10 +284,11 @@ class MyBot(d.Client):
 
         user = msg.user
         epoch = round(timestamp.timestamp())    # convert timestamp to UNIX epoch in order to display them as discord timestamp
+        time = timestamp.time().isoformat(timespec='minutes')  # get the time in standardized format (hh:mm)
 
         # get a confirmation from the user first before deleting
         reminder_confirmation = UserInteractionHandler(self, msg)
-        question = f'Reminder für <@!{user.id}> am **<t:{epoch}:d>** um **<t:{epoch}:t>** mit dem Text:\n_{memo}_\nPasst das so? (y/n)'
+        question = f'Reminder für <@!{user.id}> am **<t:{epoch}:d>** um **{time}** mit dem Text:\n_{memo}_\nPasst das so? (y/n)'
         abort_msg = f'Na dann, lassen wir das'
         confirmed, num = await reminder_confirmation.get_confirmation(question=question, abort_msg=abort_msg)
 
