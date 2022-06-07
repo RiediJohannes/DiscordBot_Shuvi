@@ -1,5 +1,8 @@
 import uuid
 from dataclasses import dataclass
+
+import discord
+
 from msg_container import MsgContainer
 from datetime import datetime
 from typing import Tuple
@@ -64,17 +67,22 @@ class DatabaseWrapper:
         return Reminder(*reminder_args)
 
 
-    async def fetch_reminders(self, channels=None) -> list[Reminder]:
-        channel_filter = ''
+    async def fetch_reminders(self, channels=None, user=None) -> list[Reminder]:
         # if a list of channels was given, only fetch reminders which are bound to one of those channels
+        channel_filter = ''
         if channels:
             server: str = ", ".join(channels)
             channel_filter = f'AND rem.channel_id IN ({server})'
 
+        # if a specific user was given, only fetch reminders for that user
+        user_filter = ''
+        if user:
+            user_filter = f'AND rem.user_id = {user.id}'
+
         reminder_args = await self.database_connection.fetch(f"""
             SELECT id, user_id, channel_id, date_time_zone, memo
             FROM reminder rem
-            WHERE rem.date_time_zone >= current_timestamp {channel_filter}
+            WHERE rem.date_time_zone >= current_timestamp {channel_filter} {user_filter}
             ORDER BY date_time_zone ASC;
         """)
         # create a list of Reminder objects from the data

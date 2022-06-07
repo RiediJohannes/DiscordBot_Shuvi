@@ -418,11 +418,16 @@ class MyBot(d.Client):
 
     # returns an embed, listing all reminders that are currently in the database
     async def show_reminders(self, msg: MsgContainer) -> d.Embed | ReminderNotFoundException:
-        # get a list of channel_ids for all channels on the message's server
-        channel_list = [str(channel.id) for channel in msg.server.text_channels]
+        # check if command was sent in a server
+        if not msg.server:
+            # command was invoked in a private chat -> fetch all reminders for that user
+            next_reminders: List[Reminder] = await self.db.fetch_reminders(user=msg.user)
+        else:
+            # get a list of channel_ids for all channels on the message's server
+            channel_list = [str(channel.id) for channel in msg.server.text_channels]
+            # fetch a list of upcoming reminders on this server from the database
+            next_reminders: List[Reminder] = await self.db.fetch_reminders(channels=channel_list)
 
-        # fetch a list of upcoming reminders on this server from the database
-        next_reminders: List[Reminder] = await self.db.fetch_reminders(channels=channel_list)
         if not next_reminders:  # empty list -> no reminders found in the database
             raise ReminderNotFoundException('There are no upcoming reminders at the moment', cause=Cause.EMPTY_DB)
 
@@ -497,7 +502,6 @@ class MyBot(d.Client):
     # bugs
     # ToDo: Bugfix - Ensure that reminders also happen when they are missed by like up to 120 seconds
     # TODO: Bugfix - multiple reminders at the exact same time (atm only one of them is being sent)
-    # TODO: Bugfix - .remindme -show does not work in private channels
 
 
     @staticmethod  # this is only static so that the compiler shuts up at the execute_command()-call above
