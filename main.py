@@ -15,7 +15,7 @@ from error_handler import ErrorHandler
 from time_handler import TimeHandler
 from msg_container import MsgContainer
 from user_interaction_handler import UserInteractionHandler
-from database_wrapper import DatabaseWrapper, Reminder
+from database_wrapper import DatabaseWrapper, Reminder, DBUser
 
 
 async def __startup():
@@ -58,7 +58,8 @@ class MyBot(d.Client):
         self.db = db
         self.prefix = prefix
 
-        self.greetings = ['Hallo', 'Hey', 'Hi', 'Hoi', 'Servus', 'Moin', 'Zeawas', 'Seawas', 'Heile', 'Grüezi', 'Ohayou', 'Yahallo', 'Merhaba']
+        self.greetings = ['Hallo', 'Hey', 'Hi', 'Hoi', 'Servus', 'Moin', 'Zeawas', 'Seawas', 'Heile', 'Grüezi', 'Ohayou', 'Yahallo', 'Merhaba', 'Bonjour',
+                          'Naber', 'What\'s up', 'G\'day', 'Cześć', 'Goedendag', 'Xin chào', 'Konbanwa', 'Annyeong', 'Grüß Gott', 'Selamun aleyküm']
         self.when_approached = ['Ja, was ist?', 'Ja?', 'Hm?', 'Was los', 'Zu Diensten!', 'Jo?', 'Hier', 'Was\'n?', 'Schon da',
                                 'Ich hör dir zu', 'So heiß ich']
         self.spam_done = ['So, genug gespammt!', 'Genug jetzt!', 'Das reicht jetzt aber wieder mal.', 'Und Schluss', 'Owari desu', 'Habe fertig']
@@ -172,6 +173,11 @@ class MyBot(d.Client):
             # generate appropriate response
             response = await self.__react_to_name(msg)
             await msg.post(response)
+
+        # check for selam in message
+        if 'selam' in msg.text:
+            # generate appropriate response
+            await msg.post('Aleyküm selam')
 
 
     # defines reaction to when a user message includes the bot's name (content of self.name)
@@ -301,7 +307,9 @@ class MyBot(d.Client):
         if not user_data:
             # create an entry for the sender in the users() relation if there isn't one already
             await self.db.create_user_entry(user)
-            user_data.tz = await self.__add_timezone(msg)
+            # as the user was None, we need to create a new user object with the chosen timezone
+            new_timezone = await self.__add_timezone(msg)
+            user_data = DBUser(-1, "None", "None", new_timezone)
         elif not user_data.tz:
             # if the user hasn't defined a timezone yet, add one
             user_data.tz = await self.__add_timezone(msg)
