@@ -126,6 +126,8 @@ class MyBot(d.Client):
 
                 # wait for countdown to finish, then post reminder memo into the specified channel
                 await countdown
+                # TODO: if the channel id is a private channel, we will not be able to get a channel object this way
+                # instead: https://stackoverflow.com/questions/43576140/how-do-i-get-a-users-private-message-channel-in-discord-py
                 chat = self.get_channel(reminder.channel_id)
                 await chat.send(f'Reminder an <@!{reminder.user_id}>:\n{reminder.memo}')
 
@@ -153,6 +155,12 @@ class MyBot(d.Client):
 
         # check for command at message begin
         if msg.prefix == self.prefix:
+
+            # don't react on prefixes that are not followed by an alphabetic character
+            # this is most likely a smiley, not a command
+            if not msg.text[1].isalpha():
+                return
+
             logger.info(f"Command '{msg.cmd}' by {msg.user.name}")
 
             try:
@@ -368,12 +376,12 @@ class MyBot(d.Client):
             # if the user rejected our offer, continue with the usual timezone choosing procedure below
 
         # let the user choose either one of those highest ranking timezones or search again with another string
-        tz_selection = f"Folgende Zeitzonen sind deiner Anfrage am ähnlichsten:\n" + \
-                       "\n".join([str(i + 1) + ') ' + match[0]    # '1) Europe/Berlin' (example)
-                                 for i, match in enumerate(scores)  # iterate through every element in the list
-                                 if i < 5 or match[1] == scores[0][1]])  # take the first 5, potentially more if they have the same score as the 1st element
+        tz_selection: str = f"Folgende Zeitzonen sind deiner Anfrage am ähnlichsten:\n" + \
+                            "\n".join([str(i + 1) + ') ' + match[0]    # '1) Europe/Berlin' (example)
+                                      for i, match in enumerate(scores)  # iterate through every element in the list
+                                      if i < 5 or match[1] == scores[0][1]])  # take the first 5, potentially more if they have the same score as the 1st element
 
-        if len(tz_selection) == 20:
+        if len(scores) == 20:
             tz_selection += "\n...und eventuell weitere - bitte verwende einen genaueren Suchbegriff!"
         await interaction.talk(tz_selection)
 
