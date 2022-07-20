@@ -115,7 +115,14 @@ class MyBot(d.Client):
             logger.info(f'Time left: {time_remaining} seconds')
 
             # if the time remaining is less than a minute, initiate the reminding process
-            if time_remaining < 60:
+            if time_remaining > 60:
+                # sleep for a while (80% of the time remaining to be exact, for one hour at max)
+                # then check again if the reminder is still valid
+                sleep_time = time_remaining / 1.25 if time_remaining < 1.25 * 3600 else 3600
+                logger.info(f'ReminderWatchdog is now sleeping for {sleep_time} seconds')
+                await asyncio.sleep(sleep_time)
+
+            else:
                 logger.info(f'Upcoming reminder in {time_remaining} seconds...')
 
                 # create a new task to sleep one last time until the reminder is due
@@ -124,22 +131,27 @@ class MyBot(d.Client):
                 # retrieve the upcoming reminder as a reminder object
                 reminder = await self.db.fetch_next_reminder()
 
+                # try to get a channel object through the channel id - this method only works for server channels
+                chat = self.get_channel(reminder.channel_id)
+
+                # if chat is none, the channel_id was most likely a private channel (dm)
+                if not chat:
+                    # search through all existing private channels the bot has
+                    for dm in self.private_channels:
+                        if reminder.channel_id == dm.id:
+                            chat = dm
+
+                # in case we don't have a dm chat with that user yet, we need to create one
+                if not chat:
+                    user = self.get_user(reminder.user_id)
+                    chat = await self.start_private_message(user)
+
                 # wait for countdown to finish, then post reminder memo into the specified channel
                 await countdown
-                # TODO: if the channel id is a private channel, we will not be able to get a channel object this way
-                # instead: https://stackoverflow.com/questions/43576140/how-do-i-get-a-users-private-message-channel-in-discord-py
-                chat = self.get_channel(reminder.channel_id)
                 await chat.send(f'Reminder an <@!{reminder.user_id}>:\n{reminder.memo}')
 
                 # delete reminder in database afterwards
                 await self.db.delete_reminder(reminder)
-
-            else:
-                # sleep for a while (80% of the time remaining to be exact, for one hour at max)
-                # then check again if the reminder is still valid
-                sleep_time = time_remaining / 1.25 if time_remaining < 1.25*3600 else 3600
-                logger.info(f'ReminderWatchdog is now sleeping for {sleep_time} seconds')
-                await asyncio.sleep(sleep_time)
 
 
     # executes when a new message is detected in any channel
@@ -362,9 +374,10 @@ class MyBot(d.Client):
 
 
     async def __choose_timezone(self, interaction: UserInteractionHandler, tz_guess: str) -> str | None:
+        result_limit = 20
         # evaluates a "similarity score" between 0 and 100 for every timezone
-        # then sorts them descending by their score and returns the 20 best matching tuples
-        scores: List[Tuple[str, int]] = process.extract(tz_guess, pytz.common_timezones, scorer=fuzz.partial_ratio, limit=20)
+        # then sorts them descending by their score and returns the [result_limit] best matching tuples
+        scores: List[Tuple[str, int]] = process.extract(tz_guess, pytz.common_timezones, scorer=fuzz.partial_ratio, limit=result_limit)
 
         # if the match is very clear, ask the user if that's the correct timezone
         if (scores[0][1] == 100 and scores[1][1] < 100) or 0.8 * scores[0][1] > scores[1][1]:
@@ -381,7 +394,7 @@ class MyBot(d.Client):
                                       for i, match in enumerate(scores)  # iterate through every element in the list
                                       if i < 5 or match[1] == scores[0][1]])  # take the first 5, potentially more if they have the same score as the 1st element
 
-        if len(scores) == 20:
+        if len(scores) == result_limit:
             tz_selection += "\n...und eventuell weitere - bitte verwende einen genaueren Suchbegriff!"
         await interaction.talk(tz_selection)
 
