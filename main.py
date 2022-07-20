@@ -100,58 +100,68 @@ class MyBot(d.Client):
         # wait until the bot is ready
         await self.wait_until_ready()
 
-        while True:
-            # check the time remaining until the next reminder is due
-            due_date, time_remaining = await self.db.check_next_reminder()
+        try:
+            while True:
+                # check the time remaining until the next reminder is due
+                due_date, time_remaining = await self.db.check_next_reminder()
 
-            if not due_date or not time_remaining:
-                logger.info(f'Currently no reminders in the DB. ReminderWatchdog is placed on hold until further notice')
-                break   # escape while loop
+                if not due_date or not time_remaining:
+                    logger.info(f'Currently no reminders in the DB. ReminderWatchdog is placed on hold until further notice')
+                    break   # escape while loop
 
-            # localize the due date to CET
-            due_date = due_date.astimezone(pytz.timezone('Europe/Berlin'))
+                # localize the due date to CET
+                due_date = due_date.astimezone(pytz.timezone('Europe/Berlin'))
 
-            logger.info(f'Next reminder is due at: {due_date}')
-            logger.info(f'Time left: {time_remaining} seconds')
+                logger.info(f'Next reminder is due at: {due_date}')
+                logger.info(f'Time left: {time_remaining} seconds')
 
-            # if the time remaining is less than a minute, initiate the reminding process
-            if time_remaining > 60:
-                # sleep for a while (80% of the time remaining to be exact, for one hour at max)
-                # then check again if the reminder is still valid
-                sleep_time = time_remaining / 1.25 if time_remaining < 1.25 * 3600 else 3600
-                logger.info(f'ReminderWatchdog is now sleeping for {sleep_time} seconds')
-                await asyncio.sleep(sleep_time)
+                # if the time remaining is less than a minute, initiate the reminding process
+                if time_remaining > 60:
+                    # sleep for a while (80% of the time remaining to be exact, for one hour at max)
+                    # then check again if the reminder is still valid
+                    sleep_time = time_remaining / 1.25 if time_remaining < 1.25 * 3600 else 3600
+                    logger.info(f'ReminderWatchdog is now sleeping for {sleep_time} seconds')
+                    await asyncio.sleep(sleep_time)
 
-            else:
-                logger.info(f'Upcoming reminder in {time_remaining} seconds...')
+                else:
+                    logger.info(f'Upcoming reminder in {time_remaining} seconds...')
 
-                # create a new task to sleep one last time until the reminder is due
-                countdown = asyncio.create_task(asyncio.sleep(time_remaining))
+                    # create a new task to sleep one last time until the reminder is due
+                    countdown = asyncio.create_task(asyncio.sleep(time_remaining))
 
-                # retrieve the upcoming reminder as a reminder object
-                reminder = await self.db.fetch_next_reminder()
+                    # retrieve the upcoming reminder as a reminder object
+                    reminder = await self.db.fetch_next_reminder()
+                    # get the chat for which the reminder is destined
+                    chat = await self.__get_channel_by_id(reminder.channel_id, reminder.user_id)
 
-                # try to get a channel object through the channel id - this method only works for server channels
-                chat = self.get_channel(reminder.channel_id)
+                    # wait for countdown to finish, then post reminder memo into the specified channel
+                    await countdown
+                    await chat.send(f'Reminder an <@!{reminder.user_id}>:\n{reminder.memo}')
 
-                # if chat is none, the channel_id was most likely a private channel (dm)
-                if not chat:
-                    # search through all existing private channels the bot has
-                    for dm in self.private_channels:
-                        if reminder.channel_id == dm.id:
-                            chat = dm
+                    # delete reminder in database afterwards
+                    await self.db.delete_reminder(reminder)
 
-                # in case we don't have a dm chat with that user yet, we need to create one
-                if not chat:
-                    user = self.get_user(reminder.user_id)
-                    chat = await self.start_private_message(user)
+        except Exception as exp:
+            # forward any exception to the ErrorHandler
+            await self.error_handler.handle(exp)
 
-                # wait for countdown to finish, then post reminder memo into the specified channel
-                await countdown
-                await chat.send(f'Reminder an <@!{reminder.user_id}>:\n{reminder.memo}')
 
-                # delete reminder in database afterwards
-                await self.db.delete_reminder(reminder)
+    # returns a channel object corresponding to a given channel_id
+    async def __get_channel_by_id(self, channel_id: int, user_id: int) -> d.channel:
+        # try to get a channel object through the channel id - this method only works for server channels
+        chat = self.get_channel(channel_id)
+        if chat:
+            return chat
+
+        # if chat is none, the channel_id was most likely a private channel (dm)
+        # search through all existing private channels the bot has
+        for dm in self.private_channels:
+            if channel_id == dm.id:
+                return dm
+
+        # in case we don't have a dm chat with that user yet, we need to create one
+        user = self.get_user(user_id)
+        return await self.start_private_message(user)
 
 
     # executes when a new message is detected in any channel

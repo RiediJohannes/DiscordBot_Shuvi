@@ -13,7 +13,7 @@ class ErrorHandler:
         self.debug = debug_channel
 
 
-    async def handle(self, exp: Exception, user_msg: MsgContainer):
+    async def handle(self, exp: Exception, user_msg: MsgContainer = None):
         # log error message and stacktrace
         traceback = list(tb.extract_tb(exp.__traceback__, limit=4))
         # summary: '↪ func_name, line ### -------> method call in traceback record'
@@ -25,10 +25,11 @@ class ErrorHandler:
         self.log.error(error_log)
 
         # log traceback to debug channel on discord
+        username: str = user_msg.user.display_name if user_msg else "Unbekannt"
         if isinstance(exp, BotBaseException):
-            debug_message = f"Bekannte Exception verursacht durch {user_msg.user.display_name}:"
+            debug_message = f"Bekannte Exception verursacht durch {username}:"
         else:
-            debug_message = f"<@!178992018788188162> Unbekannte Exception verursacht durch {user_msg.user.display_name}:"
+            debug_message = f"<@!178992018788188162> Unbekannte Exception verursacht durch {username}:"
         debug_message += "```yaml\n" + error_log + "```"
         await self.debug.send(debug_message)
 
@@ -82,4 +83,5 @@ class ErrorHandler:
                 feedback = f'Bei deinem Datum oder deiner Uhrzeit scheint irgendwas nicht ganz zu passen'
 
         # send feedback message to the channel of the message that caused the error
-        await msg.post(feedback)
+        if msg:
+            await msg.post(feedback)
