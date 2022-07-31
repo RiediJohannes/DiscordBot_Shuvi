@@ -147,7 +147,7 @@ class MyBot(d.Client):
 
 
     # returns a channel object corresponding to a given channel_id
-    async def __get_channel_by_id(self, channel_id: int, user_id: int) -> d.channel:
+    async def __get_channel_by_id(self, channel_id: int, user_id: int) -> d.abc.Messageable | None:
         # try to get a channel object through the channel id - this method only works for server channels
         chat = self.get_channel(channel_id)
         if chat:
@@ -299,7 +299,7 @@ class MyBot(d.Client):
         await msg.post(f'{number} Nachrichten gelöscht', ttl=5.0)
 
 
-    async def set_reminder(self, msg: MsgContainer) -> None | ReminderNotFoundException:
+    async def set_reminder(self, msg: MsgContainer) -> None | ReminderNotFoundException | InvalidArgumentsException:
         # option 1: the user just wanted to see the upcoming reminders
         if '-s' in msg.options or '-show' in msg.options:
             embed = await self.show_reminders(msg)
@@ -314,23 +314,13 @@ class MyBot(d.Client):
         #                                     arguments=msg.text, expected=3, got=arg_count)
 
         # parse memo and timestamp from user message
-        reminder_filter = TimeHandler()
-        timestamp: datetime.datetime = reminder_filter.get_timestamp(msg)
-        memo: str = reminder_filter.get_memo(msg)
+        reminder_parser = TimeHandler()
+        timestamp: datetime.datetime = reminder_parser.get_timestamp(msg)
+        memo: str = reminder_parser.get_memo(msg)
 
         user = msg.user
-        epoch = round(timestamp.timestamp())    # convert timestamp to UNIX epoch in order to display them as discord timestamp
+        epoch = round(timestamp.timestamp())  # convert timestamp to UNIX epoch in order to display them as discord timestamp
         time = timestamp.time().isoformat(timespec='minutes')  # get the time in standardized format (hh:mm)
-
-        # get a confirmation from the user first before deleting
-        reminder_confirmation = UserInteractionHandler(self, msg)
-        question = f'Reminder für <@!{user.id}> am **<t:{epoch}:d>** um **{time}** mit dem Text:\n_{memo}_\nPasst das so? (y/n)'
-        abort_msg = f'Na dann, lassen wir das'
-        confirmed, num = await reminder_confirmation.get_confirmation(question=question, abort_msg=abort_msg)
-
-        # if the user wants to abort the task, stop execution
-        if not confirmed:
-            return
 
         # fetch user data from the database
         user_data = await self.db.fetch_user_entry(user)
@@ -345,7 +335,24 @@ class MyBot(d.Client):
             user_data.tz = await self.__add_timezone(msg)
 
         user_tz = pytz.timezone(user_data.tz)
-        timestamp_localized = user_tz.localize(timestamp)   # add timezone information to the timestamp
+        timestamp_localized = user_tz.localize(timestamp)  # add timezone information to the timestamp
+
+        # check if the reminder datetime has already passed (with regard to the user's timezone ofc)
+        now = pytz.utc.localize(datetime.datetime.now())
+        now.replace(tzinfo=user_tz)  # shift the "now" timestamp to fit the users timezone
+        if timestamp_localized < now:
+            raise InvalidArgumentsException('Cannot set reminder for datetime in the past', cause=Cause.TIMESTAMP_IN_THE_PAST,
+                                            goal=Goal.REMINDER_SET, arguments=timestamp)
+
+        # get a confirmation from the user first before deleting
+        reminder_confirmation = UserInteractionHandler(self, msg)
+        question = f'Reminder für <@!{user.id}> am **<t:{epoch}:d>** um **{time}** mit dem Text:\n_{memo}_\nPasst das so? (y/n)'
+        abort_msg = f'Na dann, lassen wir das'
+        confirmed, num = await reminder_confirmation.get_confirmation(question=question, abort_msg=abort_msg)
+
+        # if the user wants to abort the task, stop execution
+        if not confirmed:
+            return
 
         # write the new reminder to the database
         await self.db.push_reminder(msg, timestamp_localized, memo)

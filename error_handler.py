@@ -77,10 +77,13 @@ class ErrorHandler:
 
             elif exp.cause == Cause.TIME_NOT_FOUND:
                 if exp.goal == Goal.REMINDER_SET:
-                    feedback = f'Zu welcher Zeit soll {self.bot.name} dich denn erinnern? Bitte verwende die Notation **mm:hh**'
+                    feedback = f'Zu welcher Zeit soll {self.bot.name} dich denn erinnern? Bitte verwende die Notation **hh:mm**'
 
             elif exp.cause == Cause.INCORRECT_DATETIME:
                 feedback = f'Bei deinem Datum oder deiner Uhrzeit scheint irgendwas nicht ganz zu passen'
+
+            elif exp.cause == Cause.TIMESTAMP_IN_THE_PAST:
+                feedback = f'Sag mal, du möchtest einen Reminder in der Vergangenheit setzen? Na das ist ja sehr sinnvoll'
 
         # send feedback message to the channel of the message that caused the error
         if msg:
