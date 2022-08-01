@@ -18,7 +18,6 @@ class QuoteServer:
     # load all the data from the json file
     with open(filename, encoding='utf-8') as json_file:
         quotes = json.load(json_file)
-        print('json file loaded')
 
 
     @classmethod

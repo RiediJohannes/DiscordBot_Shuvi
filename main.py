@@ -214,7 +214,8 @@ class MyBot(d.Client):
 
 
     # defines reaction to when a user message includes the bot's name (content of self.name)
-    async def __react_to_name(self, msg: MsgContainer) -> str:
+    @staticmethod
+    async def __react_to_name(msg: MsgContainer) -> str:
         # check if there is a greeting inside the message
         for word in Quotes.get_choices("greetings"):
             if word.casefold() in msg.text:
@@ -259,7 +260,8 @@ class MyBot(d.Client):
 
 
     # spams the channel with messages counting up to the number given as a parameter
-    async def spam(self, msg: MsgContainer) -> None:
+    @staticmethod
+    async def spam(msg: MsgContainer) -> None:
         # takes the first number in the message
         number = int(next(filter(lambda word: word.isnumeric(), msg.words), 0))
         if not number:
@@ -539,7 +541,6 @@ class MyBot(d.Client):
 
     # general improvements
     # TODO: use JSON for every text string of the bot
-    # TODO: add function that simplifies picking a specific JSON line and automatically chooses a random one if source is a list
     # TODO: set the default channel and debug channel id as os variables!!
 
     # delete command
@@ -549,7 +550,7 @@ class MyBot(d.Client):
 
     # bugs
     # ToDo: Bugfix - Ensure that reminders also happen when they are missed by like up to 120 seconds
-    # TODO: Bugfix - multiple reminders at the exact same time (atm only one of them is being sent)
+    # TODO: Bugfix - multiple reminders at the exact same time (atm only one of them is sent)
 
 
     @staticmethod  # this is only static so that the compiler shuts up at the execute_command()-call above

@@ -43,56 +43,42 @@ class ErrorHandler:
         # default message if an unknown error occurred
         feedback = 'Ups, hier hat irgendwas nicht ganz geklappt .-.'
 
-        if isinstance(exp, UnknownCommandException):
-            if exp.goal == Goal.HELP:
+        match exp:
+            case UnknownCommandException(goal=Goal.HELP) as exp:
                 feedback = f"Es gibt kein Kommando '{exp.cmd}' du kek"
-            else:
+            case UnknownCommandException():
                 feedback = f'Dieses Kommando kennt {self.bot} leider nicht :/'
 
-
-        if isinstance(exp, QuoteServerException):
-            if exp.cause == Cause.INVALID_JSON_PATH:
+            case QuoteServerException(cause=Cause.INVALID_JSON_PATH):
                 feedback = f'{self.bot} weiß leider nicht, was sie dazu sagen soll .-.'
-            elif exp.cause == Cause.NOT_AN_ENDPOINT:
+            case QuoteServerException(cause=Cause.NOT_AN_ENDPOINT):
                 feedback = f'Es gibt zu viele Antwortmöglichkeiten, {self.bot} weiß nicht, wie sie darauf reagieren soll D:'
 
+            case AuthorizationException() as exp:
+                feedback = 'Du kannst nicht einfach den Reminder von jemand anderem löschen, wtf?\n' \
+                           '-- _{0} hat versucht den Reminder "{1}" von <@{2}> zu löschen._ --' \
+                            .format(exp.accessor.display_name, exp.resource.memo, exp.owner)
 
-        if isinstance(exp, AuthorizationException):
-            feedback = 'Du kannst nicht einfach den Reminder von jemand anderem löschen, wtf?\n' \
-                       '-- _{0} hat versucht den Reminder "{1}" von <@{2}> zu löschen._ --' \
-                       .format(exp.accessor.display_name, exp.resource.memo, exp.owner)
-
-
-        elif isinstance(exp, ReminderNotFoundException):
-            if exp.cause == Cause.EMPTY_DB:
+            case ReminderNotFoundException(cause=Cause.EMPTY_DB):
                 feedback = f'Aktuell scheint es gar keine anstehenden Reminder zu geben. Niemand nutzt {self.bot}s Hilfe :('
 
+            case IndexOutOfBoundsException() as exp:
+                feedback = '{0}? Sorry aber so viele Reminder kennt {1} aktuell gar nicht'.format(exp.index + 1, self.bot)
 
-        elif isinstance(exp, IndexOutOfBoundsException):
-            feedback = '{0}? Sorry aber so viele Reminder kennt {1} aktuell gar nicht'.format(exp.index + 1, self.bot)
+            case InvalidArgumentsException(cause=Cause.NOT_A_NUMBER, goal=Goal.REMINDER_DEL):
+                feedback = f'Welchen Reminder möchtest du denn löschen? {self.bot} benötigt eine Nummer von dir'
+            case InvalidArgumentsException(cause=Cause.NOT_A_NUMBER, goal=Goal.SPAM):
+                feedback = f'Eine Zahl wäre schön, meinst du nicht?'
+            case InvalidArgumentsException(cause=Cause.NOT_A_NUMBER):
+                feedback = f'{self.bot} konnte in deiner Nachricht keine Nummer finden :|'
 
-
-        elif isinstance(exp, InvalidArgumentsException):
-            if exp.cause == Cause.NOT_A_NUMBER:
-                if exp.goal == Goal.REMINDER_DEL:
-                    feedback = f'Welchen Reminder möchtest du denn löschen? {self.bot} benötigt eine Nummer von dir'
-                elif exp.goal == Goal.SPAM:
-                    feedback = f'Eine Zahl wäre schön, meinst du nicht?'
-                else:
-                    feedback = f'{self.bot} konnte in deiner Nachricht keine Nummer finden :|'
-
-            elif exp.cause == Cause.DATE_NOT_FOUND:
-                if exp.goal == Goal.REMINDER_SET:
-                    feedback = f'Irgendwie kann {self.bot} da kein korrektes Datum sehen. Bitte verwende die Notation **dd.mm.yyyy** (oder kurz **d.m.yy**, geht auch)'
-
-            elif exp.cause == Cause.TIME_NOT_FOUND:
-                if exp.goal == Goal.REMINDER_SET:
-                    feedback = f'Zu welcher Zeit soll {self.bot} dich denn erinnern? Bitte verwende die Notation **hh:mm**'
-
-            elif exp.cause == Cause.INCORRECT_DATETIME:
+            case InvalidArgumentsException(cause=Cause.DATE_NOT_FOUND, goal=Goal.REMINDER_SET):
+                feedback = f'Irgendwie kann {self.bot} da kein korrektes Datum sehen. Bitte verwende die Notation **dd.mm.yyyy** (oder kurz **d.m.yy**, geht auch)'
+            case InvalidArgumentsException(cause=Cause.TIME_NOT_FOUND, goal=Goal.REMINDER_SET):
+                feedback = f'Zu welcher Zeit soll {self.bot} dich denn erinnern? Bitte verwende die Notation **hh:mm**'
+            case InvalidArgumentsException(cause=Cause.INCORRECT_DATETIME, goal=Goal.REMINDER_SET):
                 feedback = f'Bei deinem Datum oder deiner Uhrzeit scheint irgendwas nicht ganz zu passen'
-
-            elif exp.cause == Cause.TIMESTAMP_IN_THE_PAST:
+            case InvalidArgumentsException(cause=Cause.TIMESTAMP_IN_THE_PAST, goal=Goal.REMINDER_SET):
                 feedback = f'Sag mal, du möchtest einen Reminder in der Vergangenheit setzen? Na das ist ja sehr sinnvoll'
 
         # send feedback message to the channel of the message that caused the error

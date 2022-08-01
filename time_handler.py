@@ -38,7 +38,7 @@ class TimeHandler:
             else:
                 timestamp = datetime.strptime(date_str + ' ' + time_str, '%d.%m.%Y %H:%M')
         except ValueError as exp:
-            raise InvalidArgumentsException(str(exp), cause=Cause.INCORRECT_DATETIME, goal=Goal(0), arguments=[date_str, time_str])
+            raise InvalidArgumentsException(str(exp), cause=Cause.INCORRECT_DATETIME, goal=Goal.REMINDER_SET, arguments=[date_str, time_str])
 
         return timestamp
 
