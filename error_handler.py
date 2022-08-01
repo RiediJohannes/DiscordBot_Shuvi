@@ -1,14 +1,16 @@
 import traceback as tb
 import inspect    # my_stack = inspect.stack()
+
 from logging import Logger
 from errors import *
 from msg_container import MsgContainer
+from quote_server import QuoteServer as Quotes
 
 
 class ErrorHandler:
 
-    def __init__(self, bot, logger: Logger, debug_channel):
-        self.bot = bot
+    def __init__(self, bot_name: str, logger: Logger, debug_channel):
+        self.bot = bot_name
         self.log = logger
         self.debug = debug_channel
 
@@ -45,7 +47,15 @@ class ErrorHandler:
             if exp.goal == Goal.HELP:
                 feedback = f"Es gibt kein Kommando '{exp.cmd}' du kek"
             else:
-                feedback = f'Dieses Kommando kennt {self.bot.name} leider nicht :/'
+                feedback = f'Dieses Kommando kennt {self.bot} leider nicht :/'
+
+
+        if isinstance(exp, QuoteServerException):
+            if exp.cause == Cause.INVALID_JSON_PATH:
+                feedback = f'{self.bot} weiß leider nicht, was sie dazu sagen soll .-.'
+            elif exp.cause == Cause.NOT_AN_ENDPOINT:
+                feedback = f'Es gibt zu viele Antwortmöglichkeiten, {self.bot} weiß nicht, wie sie darauf reagieren soll D:'
+
 
         if isinstance(exp, AuthorizationException):
             feedback = 'Du kannst nicht einfach den Reminder von jemand anderem löschen, wtf?\n' \
@@ -55,29 +65,29 @@ class ErrorHandler:
 
         elif isinstance(exp, ReminderNotFoundException):
             if exp.cause == Cause.EMPTY_DB:
-                feedback = f'Aktuell scheint es gar keine anstehenden Reminder zu geben. Niemand nutzt {self.bot.name}s Hilfe :('
+                feedback = f'Aktuell scheint es gar keine anstehenden Reminder zu geben. Niemand nutzt {self.bot}s Hilfe :('
 
 
         elif isinstance(exp, IndexOutOfBoundsException):
-            feedback = '{0}? Sorry aber so viele Reminder kennt {1} aktuell gar nicht'.format(exp.index + 1, self.bot.name)
+            feedback = '{0}? Sorry aber so viele Reminder kennt {1} aktuell gar nicht'.format(exp.index + 1, self.bot)
 
 
         elif isinstance(exp, InvalidArgumentsException):
             if exp.cause == Cause.NOT_A_NUMBER:
                 if exp.goal == Goal.REMINDER_DEL:
-                    feedback = f'Welchen Reminder möchtest du denn löschen? {self.bot.name} benötigt eine Nummer von dir'
+                    feedback = f'Welchen Reminder möchtest du denn löschen? {self.bot} benötigt eine Nummer von dir'
                 elif exp.goal == Goal.SPAM:
                     feedback = f'Eine Zahl wäre schön, meinst du nicht?'
                 else:
-                    feedback = f'{self.bot.name} konnte in deiner Nachricht keine Nummer finden :|'
+                    feedback = f'{self.bot} konnte in deiner Nachricht keine Nummer finden :|'
 
             elif exp.cause == Cause.DATE_NOT_FOUND:
                 if exp.goal == Goal.REMINDER_SET:
-                    feedback = f'Irgendwie kann {self.bot.name} da kein korrektes Datum sehen. Bitte verwende die Notation **dd.mm.yyyy** (oder kurz **d.m.yy**, geht auch)'
+                    feedback = f'Irgendwie kann {self.bot} da kein korrektes Datum sehen. Bitte verwende die Notation **dd.mm.yyyy** (oder kurz **d.m.yy**, geht auch)'
 
             elif exp.cause == Cause.TIME_NOT_FOUND:
                 if exp.goal == Goal.REMINDER_SET:
-                    feedback = f'Zu welcher Zeit soll {self.bot.name} dich denn erinnern? Bitte verwende die Notation **hh:mm**'
+                    feedback = f'Zu welcher Zeit soll {self.bot} dich denn erinnern? Bitte verwende die Notation **hh:mm**'
 
             elif exp.cause == Cause.INCORRECT_DATETIME:
                 feedback = f'Bei deinem Datum oder deiner Uhrzeit scheint irgendwas nicht ganz zu passen'
@@ -88,3 +98,10 @@ class ErrorHandler:
         # send feedback message to the channel of the message that caused the error
         if msg:
             await msg.post(feedback)
+
+
+    # TODO: if we ever need to use the bot_name in quotes that are not handled by the ErrorHandler, we could just
+    # move this logic to the QuoteServer class - though we would have to make it instantiable with the bot's name
+    def __fetch_quote(self, quote_path: str) -> str:
+        raw_quote = Quotes.get_quote(quote_path)
+        return raw_quote.replace("{botName}", self.bot)

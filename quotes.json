@@ -1,0 +1,25 @@
+{
+    "greetings": [
+        "Hallo", "Hey", "Hi", "Hoi", "Servus", "Moin", "Zeawas", "Seawas", "Heile", "Grüezi", "Ohayou", "Yahallo", "Merhaba", "Bonjour",
+                          "Naber", "What's up", "G'day", "Cześć", "Goedendag", "Xin chào", "Konbanwa", "Annyeong", "Grüß Gott", "Selamun aleyküm"
+    ],
+    "reactions": [
+        "Ja, was ist?", "Ja?", "Hm?", "Was los", "Zu Diensten!", "Jo?", "Hier", "Was'n?", "Schon da", "Ich hör dir zu", "So heiß ich"
+    ],
+    "spam_end": [
+        "So, genug gespammt!", "Genug jetzt!", "Das reicht jetzt aber wieder mal.", "Und Schluss", "Owari desu", "Habe fertig"
+    ],
+    "guidance":
+    {
+
+    },
+    "exceptions":
+    {
+        "test1": [
+            "test 1 gefunden!", "Genug jetzt!", "Das reicht jetzt aber wieder mal.", "Und Schluss", "Owari desu", "Habe fertig"
+        ],
+        "test2": [
+            "test 2 gefunden!"
+        ]
+    }
+}

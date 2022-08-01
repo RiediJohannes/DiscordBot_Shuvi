@@ -16,6 +16,7 @@ from time_handler import TimeHandler
 from msg_container import MsgContainer
 from user_interaction_handler import UserInteractionHandler
 from database_wrapper import DatabaseWrapper, Reminder, DBUser
+from quote_server import QuoteServer as Quotes
 
 
 async def __startup():
@@ -58,11 +59,6 @@ class MyBot(d.Client):
         self.db = db
         self.prefix = prefix
 
-        self.greetings = ['Hallo', 'Hey', 'Hi', 'Hoi', 'Servus', 'Moin', 'Zeawas', 'Seawas', 'Heile', 'Grüezi', 'Ohayou', 'Yahallo', 'Merhaba', 'Bonjour',
-                          'Naber', 'What\'s up', 'G\'day', 'Cześć', 'Goedendag', 'Xin chào', 'Konbanwa', 'Annyeong', 'Grüß Gott', 'Selamun aleyküm']
-        self.when_approached = ['Ja, was ist?', 'Ja?', 'Hm?', 'Was los', 'Zu Diensten!', 'Jo?', 'Hier', 'Was\'n?', 'Schon da',
-                                'Ich hör dir zu', 'So heiß ich']
-        self.spam_done = ['So, genug gespammt!', 'Genug jetzt!', 'Das reicht jetzt aber wieder mal.', 'Und Schluss', 'Owari desu', 'Habe fertig']
         self.method_dict = {
             'help': "Erhalte eine Übersicht über alle Kommandos.\n"
                     "Auch als Option -h oder -help für jedes Kommando verfügbar",
@@ -84,13 +80,19 @@ class MyBot(d.Client):
     async def on_ready(self):
         logger.info('Logged on as {0}!'.format(self.user))
 
-        # confirm successful bot startup with a message into to 'bot' channel on my private server
-        chat = self.get_channel(955511857156857949)
-        await chat.send(self.name + ' ist nun hochgefahren!')
-
         # setup ErrorHandler to process errors during runtime
         debug_channel = self.get_channel(980170587643211856)
-        self.error_handler = ErrorHandler(self, logger, debug_channel)
+        self.error_handler = ErrorHandler(self.name, logger, debug_channel)
+
+        try:
+            # confirm successful bot startup with a message into to 'bot' channel on my private server
+            chat = self.get_channel(955511857156857949)
+            # await chat.send(self.name + ' ist nun hochgefahren!')
+            await chat.send(Quotes.get_quote('greetings'))
+
+        except Exception as exp:
+            # forward any exception to the ErrorHandler
+            await self.error_handler.handle(exp)
 
         # remove long expired reminders from database
         await self.db.clean_up_reminders()
@@ -175,50 +177,51 @@ class MyBot(d.Client):
         # create a custom message object from the real message object
         msg = MsgContainer(message)
 
-        # check for command at message begin
-        if msg.prefix == self.prefix:
+        try:
+            # check for command at message begin
+            if msg.prefix == self.prefix:
 
-            # don't react on prefixes that are not followed by an alphabetic character
-            # this is most likely a smiley, not a command
-            if not msg.text[1].isalpha():
-                return
+                # don't react on prefixes that are not followed by an alphabetic character
+                # this is most likely a smiley, not a command
+                if not msg.text[1].isalpha():
+                    return
 
-            logger.info(f"Command '{msg.cmd}' by {msg.user.name}")
+                logger.info(f"Command '{msg.cmd}' by {msg.user.name}")
 
-            try:
+
                 # only show the help info for a given command
                 if '-h' in msg.words or '-help' in msg.words:
                     return await self.__get_command_info(msg)
 
                 # call the respective function belonging to given cmd with arguments (self, msg);
                 # if cmd is invalid, return function for dict-key 'not_found'
-                await self.execute_command.get(msg.cmd, self.execute_command['not_found'])(self, msg)
+                return await self.execute_command.get(msg.cmd, self.execute_command['not_found'])(self, msg)
 
-            except Exception as exp:
-                # forward any exception during the execution of a command to the ErrorHandler
-                await self.error_handler.handle(exp, msg)
+            # check for own name in message
+            if self.name.casefold() in msg.text:
+                # generate appropriate response
+                response = await self.__react_to_name(msg)
+                await msg.post(response)
 
-        # check for own name in message
-        if self.name.casefold() in msg.text:
-            # generate appropriate response
-            response = await self.__react_to_name(msg)
-            await msg.post(response)
+            # check for selam in message
+            if 'selam' in msg.text:
+                # generate appropriate response
+                await msg.post('Aleyküm selam')
 
-        # check for selam in message
-        if 'selam' in msg.text:
-            # generate appropriate response
-            await msg.post('Aleyküm selam')
+        except Exception as exp:
+            # forward any exception during the execution of a command to the ErrorHandler
+            await self.error_handler.handle(exp, msg)
 
 
     # defines reaction to when a user message includes the bot's name (content of self.name)
     async def __react_to_name(self, msg: MsgContainer) -> str:
         # check if there is a greeting inside the message
-        for word in self.greetings:
+        for word in Quotes.get_choices("greetings"):
             if word.casefold() in msg.text:
-                return f'{random.choice(self.greetings)} {msg.user.display_name}!'
+                return f'{Quotes.get_quote("greetings")} {msg.user.display_name}!'
 
         # add another possible reaction at runtime: the name of the sender
-        reactions = self.when_approached.copy()
+        reactions = Quotes.get_choices("reactions")
         reactions.append(f'{msg.user.display_name}')
         return random.choice(reactions)
 
@@ -268,7 +271,7 @@ class MyBot(d.Client):
                 async with msg.chat.typing():
                     pass
         # end the spam with an assertive message
-        await msg.post(random.choice(self.spam_done), ttl=5.0)
+        await msg.post(Quotes.get_quote('spam_end'), ttl=5.0)
 
 
     # deletes a requested number of messages in the same channel (starting from the most recent message)
@@ -533,7 +536,6 @@ class MyBot(d.Client):
 
     # reminders
     # TODO: enable the use of relative time intervals (1 day, 2 hours, etc.) when setting a reminder
-    # TODO: don't allow reminders to be set for a datetime in the past
 
     # general improvements
     # TODO: use JSON for every text string of the bot
