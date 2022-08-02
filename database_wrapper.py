@@ -1,8 +1,6 @@
 import uuid
 from dataclasses import dataclass
 
-import discord
-
 from msg_container import MsgContainer
 from datetime import datetime
 from typing import Tuple

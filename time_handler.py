@@ -2,6 +2,7 @@ import re
 from datetime import datetime
 from errors import *
 from msg_container import MsgContainer
+from quote_server import QuoteServer
 
 
 class TimeHandler:
@@ -48,4 +49,4 @@ class TimeHandler:
         memo = re.search(self.memo_pattern, msg.original_text)
         if memo:
             return memo.group()
-        return 'Keine Nachricht spezifiziert'
+        return QuoteServer.get_quote('reminder/noMemo')

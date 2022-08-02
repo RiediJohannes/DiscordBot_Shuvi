@@ -1,25 +1,224 @@
 {
     "greetings": [
         "Hallo", "Hey", "Hi", "Hoi", "Servus", "Moin", "Zeawas", "Seawas", "Heile", "Grüezi", "Ohayou", "Yahallo", "Merhaba", "Bonjour",
-                          "Naber", "What's up", "G'day", "Cześć", "Goedendag", "Xin chào", "Konbanwa", "Annyeong", "Grüß Gott", "Selamun aleyküm"
+        "Naber", "What's up", "G'day", "Cześć", "Goedendag", "Xin chào", "Konbanwa", "Annyeong", "Grüß Gott", "Selamun aleyküm"
     ],
+
     "reactions": [
         "Ja, was ist?", "Ja?", "Hm?", "Was los", "Zu Diensten!", "Jo?", "Hier", "Was'n?", "Schon da", "Ich hör dir zu", "So heiß ich"
     ],
+
+    "affirmations": [
+        "yes", "y", "ja", "jo", "jup", "jap", "jö", "j", "hai", "un"
+    ],
+    
+    "rejections": [
+        "no", "n", "nein", "na", "nö", "nee", "ney", "nope", "stop", "cancel", "halt", "iie", "yada", "iya", "unn"
+    ],
+
     "spam_end": [
         "So, genug gespammt!", "Genug jetzt!", "Das reicht jetzt aber wieder mal.", "Und Schluss", "Owari desu", "Habe fertig"
     ],
-    "guidance":
-    {
 
+    "abort": {
+        "happy": [
+            "Na dann :>", "Hm, wenn du meinst :>", "Oke, dann nicht", "Na gut, dann lassen wir das", "Ist gut :>", "Ok, beim nächsten Mal dann"
+        ]
     },
+
+    "userInteraction": {
+        "retry": [
+            "Das beantwortet nicht {0.name}'s Frage",
+            "Das hilt {0.name} nicht weiter",
+            "{0.name} weiß leider nicht, was du ihr damit sagen möchtest",
+            "Hörst du {0.name} überhaupt zu?"
+        ],
+        "timeout": [
+            "Hm, da kommt ja doch nichts mehr... _[Vorgang abgebrochen]_",
+            "Scheint als wurde {0.name} vergessen :'( _[Vorgang abgebrochen]_",
+            "...\nDann halt nicht. _[Vorgang abgebrochen]_",
+            "Kommt da noch was? Scheint nicht so... _[Vorgang abgebrochen]_",
+            "Also ewig wartet {0.name} auch nicht, weißte _[Vorgang abgebrochen]_"
+        ],
+        "enough": [
+            "Du verarschst {0.name} doch... _[Vorgang abgebrochen]_",
+            "Also jetzt ist wirklich genug... _[Vorgang abgebrochen]_",
+            "Ach, frag doch wen anders... _[Vorgang abgebrochen]_",
+            "Kein Bock mehr _[Vorgang abgebrochen]_"
+        ]
+    },
+
+    "help": {
+        "title": [
+            "Hier findest du einen Überblick über alle Kommandos:"
+        ],
+        "hint": [
+            "Tipp: Du kannst auch '.command -h' schreiben, um eine\n detaillierte Hilfe nur zu diesem Kommando zu erhalten"
+        ]
+    },
+
+    "timezone": {
+        "default": "Europe/Berlin",
+        "firstTime": [
+            "Du hast noch nie deine Zeitzone angegeben.\nMöchtest du die Standardzeitzone {default_tz} wählen? (y/n)"
+        ],
+        "info": [
+            "Deine aktuelle Zeitzone lautet '{tz}'.\nMöchtest du deine Zeitzone anpassen? (y/n)"
+        ],
+
+        "selection": {
+            "start": [
+                "Na dann, welche Zeitzone soll es denn sein?\nSag {0.name} den ungefähren Namen der Zeitzone - das sind meist Hauptstädte (Beispiel: **Europe/Berlin**)",
+                "Soso, was möchtest du denn haben?\nGib {0.name} den ungefähren Namen der Zeitzone - meist Hauptstädte (Beispiel: **Europe/Berlin**)"
+            ],
+            "didYouMean": [
+                "Meintest du {best_match}? (y/n)"
+            ],
+            "otherResults": [
+                "Hm, dann lass mal schauen, was {0.name} sonst so findet..."
+            ],
+            "mostSimilar": [
+                "Folgende Zeitzonen sind deiner Anfrage am ähnlichsten:\n"
+            ],
+            "andMore": [
+                "\n...und eventuell weitere - bitte verwende einen genaueren Suchbegriff!"
+            ],
+            "chooseOne": [
+                "Wähle eine dieser Zeitzonen, indem du mit der **entsprechenden Zahl** antwortest, oder gib {0.name} einen **neuen Suchbegriff**"
+            ],
+            "hint": [
+                "...\n**Ok warte**, schau mal, hier findest du eine Liste aller Zeitzonen:\nhttps://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
+            ],
+            "error": [
+                "Da ist wohl etwas schiefgegangen :/  {0.name} konnte deine Zeitzone leider nicht ändern"
+            ],
+            "done": [
+                "Alright, deine Zeitzone ist jetzt auf {new_tz} gesetzt!",
+                "Geschafft! {0.name} hat deine Zeitzone nun auf {new_tz} gesetzt!"
+            ]
+        }
+    },
+
+    "reminder": {
+        "noMemo": [
+            "Keine Nachricht spezifiziert"
+        ],
+        "setDone": [
+            "Reminder für <@!{uid}> am **<t:{date}:d>** um **{time}** mit dem Text:\n_{memo}_\n\nReminder erfolgreich gesetzt!"
+        ],
+        "due": [
+            "Reminder an <@!{reminder.user_id}>:\n{reminder.memo}"
+        ],
+
+        "show": {
+            "title": [
+                "Die nächsten Reminder sind..."
+            ],
+            "entry": [
+                "({index}) <t:{epoch}:d>, <t:{epoch}:t> an {user.display_name}:"
+            ],
+            "hint": [
+                "Tipp: Verwende '.remindme -d <Nummer>', um den\nReminder mit gegebener Nummer zu löschen"
+            ]
+        },
+
+        "deletion": {
+            "summary": [
+                "Reminder für <@!{rem.user_id}> am **{date}** um **{time}** mit dem Text:\n_{rem.memo}_\nwird nun **gelöscht**.\nFortsetzen? (y/n)"
+            ],
+            "abort": [
+                "Alles klar, der Reminder bleibt"
+            ],
+            "done": [
+                "Reminder erfolgreich gelöscht!"
+            ]
+        }
+    },
+
+    "deletion": {
+        "question": [
+            "{0.name} würde nun {number} Nachrichten löschen. Fortsetzen? (y/n)"
+        ],
+        "abort": [
+            "Ist gut, {0.name} löscht nichts"
+        ],
+        "done": [
+             "{number} Nachrichten gelöscht"
+        ]
+    },
+
     "exceptions":
     {
-        "test1": [
-            "test 1 gefunden!", "Genug jetzt!", "Das reicht jetzt aber wieder mal.", "Und Schluss", "Owari desu", "Habe fertig"
+        "default": [
+            "Ups, hier hat irgendwas nicht ganz geklappt .-."
         ],
-        "test2": [
-            "test 2 gefunden!"
-        ]
+
+        "unknownCommand": {
+            "help": [
+                "Es gibt kein Kommando '{0.cmd}' du kek"
+            ],
+            "default": [
+                "Dieses Kommando kennt {0.bot} leider nicht :/"
+            ]
+        },
+
+        "quoteServer": {
+            "invalidJSONPath": [
+                "{0.bot} weiß leider nicht, was sie dazu sagen soll .-."
+            ],
+            "notAnEndpoint": [
+                "Es gibt zu viele Antwortmöglichkeiten, {0.bot} weiß nicht, wie sie darauf reagieren soll D:"
+            ]
+        },
+
+        "authorization": [
+            "Du kannst nicht einfach den Reminder von jemand anderem löschen, wtf?\n-- _{0.accessor.display_name} hat versucht den Reminder '{0.resource.memo}' von <@{0.owner}> zu löschen._ --"
+        ],
+
+        "reminderNotFound": [
+            "Aktuell scheint es gar keine anstehenden Reminder zu geben. Niemand nutzt {0.bot}s Hilfe :("
+        ],
+
+        "indexOutOfBounds": [
+            "{index}? Sorry aber so viele Reminder kennt {0.bot} aktuell gar nicht"
+        ],
+
+        "invalidArguments": {
+            "NaN" : {
+                "remDel": [
+                    "Welchen Reminder möchtest du denn löschen? {0.bot} benötigt eine Nummer von dir"
+                ],
+                "spam" : [
+                    "Eine Zahl wäre schön, meinst du nicht?"
+                ],
+                "default": [
+                    "{0.bot} konnte in deiner Nachricht keine Nummer finden :|"
+                ]
+            },
+
+            "dateNotFound": {
+                "remSet": [
+                    "Irgendwie kann {0.bot} da kein korrektes Datum sehen. Bitte verwende die Notation **dd.mm.yyyy** (oder kurz **d.m.yy**, geht auch)"
+                ]
+            },
+
+            "timeNotFound": {
+                "remSet": [
+                    "Zu welcher Zeit soll {0.bot} dich denn erinnern? Bitte verwende die Notation **hh:mm**"
+                ]
+            },
+
+            "incorrectDatetime": {
+                "remSet": [
+                    "Bei deinem Datum oder deiner Uhrzeit scheint irgendwas nicht ganz zu passen"
+                ]
+            },
+
+            "timestampInThePast": {
+                "remSet": [
+                    "Sag mal, du möchtest einen Reminder in der Vergangenheit setzen? Na das ist ja sehr sinnvoll"
+                ]
+            }
+        }
     }
 }

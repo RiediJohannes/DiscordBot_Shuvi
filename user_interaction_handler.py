@@ -1,17 +1,14 @@
-from msg_container import MsgContainer
 import asyncio
+
+from msg_container import MsgContainer
+from quote_server import QuoteServer as Quotes
 
 
 class UserInteractionHandler:
-    affirmations = ['yes', 'y', 'ja', 'jo', 'jup', 'jap', 'jö', 'j', 'hai', 'un']
-    rejections = ['no', 'n', 'nein', 'na', 'nö', 'nee', 'ney', 'nope', 'stop', 'cancel', 'halt', 'iie', 'yada', 'iya', 'unn']
 
     def __init__(self, bot, msg: MsgContainer):
         self.bot = bot
         self.msg = msg
-        self.default_retry_msg = f'Das beantwortet nicht {bot.name}\'s Frage'
-        self.default_timeout_msg = 'Hm, da kommt ja doch nichts mehr... _[Vorgang abgebrochen]_'
-        self.default_enough_msg = f'Du verarschst {bot.name} doch... _[Vorgang abgebrochen]_'
         self.task_messages: int = 1     # counts the messages needed for the confirmation process in order to e.g. delete them afterwards
         self.retry_counter: int = 0     # counts the retries for a given question; the caller can set a maximum of retries
 
@@ -23,11 +20,11 @@ class UserInteractionHandler:
 
         # set the default message wherever there was no message given
         if retry_msg is None:
-            retry_msg = self.default_retry_msg
+            retry_msg = Quotes.get_quote('userInteraction/retry').format(self.bot)
         if timeout_msg is None:
-            timeout_msg = self.default_timeout_msg
+            timeout_msg = Quotes.get_quote('userInteraction/timeout').format(self.bot)
         if enough_msg is None:
-            enough_msg = self.default_enough_msg
+            enough_msg = Quotes.get_quote('userInteraction/enough').format(self.bot)
 
         try:  # ask the user for confirmation with a predetermined question
             await self.msg.post(question)
@@ -41,13 +38,13 @@ class UserInteractionHandler:
 
         else:
             # if the user agreed
-            if answer.casefold() in self.affirmations:
+            if answer.casefold() in Quotes.get_choices('affirmations'):
                 self.task_messages += 1
                 self.retry_counter = 0
                 return True, self.task_messages
 
             # if the user rejected
-            elif answer.casefold() in self.rejections:
+            elif answer.casefold() in Quotes.get_choices('rejections'):
                 await self.msg.post(abort_msg)
                 self.task_messages += 2  # the abort_msg and the user's previous reply -> 2 messages
                 self.retry_counter = 0
@@ -83,7 +80,7 @@ class UserInteractionHandler:
         # in case we run into a timeout
         except asyncio.TimeoutError:
             if timeout_msg is None:
-                timeout_msg = self.default_timeout_msg
+                timeout_msg = Quotes.get_quote('userInteraction/timeout').format(self.bot)
             return await self.msg.post(timeout_msg)     # in this case None is returned!
 
 

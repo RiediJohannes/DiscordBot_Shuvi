@@ -1,11 +1,11 @@
 import discord as d
 
 
-class MsgContainer(d.Message):
+class MsgContainer:
 
     def __init__(self, msg: d.Message, option_prefix='-'):
         # straight-up copied attributes
-        self._state = msg._state
+        # self.state = msg._state
         self.id = msg.id
         self.webhook_id = msg.webhook_id
         self.reactions = msg.reactions
@@ -14,7 +14,7 @@ class MsgContainer(d.Message):
         self.application = msg.application
         self.activity = msg.activity
         self.call = None
-        self._edited_timestamp = msg._edited_timestamp
+        # self.edited_timestamp = msg._edited_timestamp
         self.type = msg.type
         self.pinned = msg.pinned
         self.flags = msg.flags

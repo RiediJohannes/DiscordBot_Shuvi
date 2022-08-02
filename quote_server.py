@@ -45,6 +45,10 @@ class QuoteServer:
                 # choose random entry in list and return it
                 return results
 
+        # final node in path was not a list -> check if there is a 'default' list
+        if default := results.get("default") is not None:
+            return default
+
         # if we reached this part of the code, then all nodes were valid keys but didn't lead to a list of quotes
         raise QuoteServerException(f'Given path "{quote_path}" does not lead to a collection of strings!',
                                    Cause.NOT_AN_ENDPOINT, quote_path=quote_path, error_node='')

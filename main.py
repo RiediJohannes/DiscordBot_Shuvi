@@ -138,7 +138,7 @@ class MyBot(d.Client):
 
                     # wait for countdown to finish, then post reminder memo into the specified channel
                     await countdown
-                    await chat.send(f'Reminder an <@!{reminder.user_id}>:\n{reminder.memo}')
+                    await chat.send(Quotes.get_quote('reminder/due').format(self, reminder=reminder))
 
                     # delete reminder in database afterwards
                     await self.db.delete_reminder(reminder)
@@ -163,7 +163,7 @@ class MyBot(d.Client):
 
         # in case we don't have a dm chat with that user yet, we need to create one
         user = self.get_user(user_id)
-        return await self.start_private_message(user)
+        return await user.create_dm()
 
 
     # executes when a new message is detected in any channel
@@ -187,7 +187,6 @@ class MyBot(d.Client):
                     return
 
                 logger.info(f"Command '{msg.cmd}' by {msg.user.name}")
-
 
                 # only show the help info for a given command
                 if '-h' in msg.words or '-help' in msg.words:
@@ -234,12 +233,12 @@ class MyBot(d.Client):
 
 
     async def info(self, msg: MsgContainer):
-        help_embed = d.Embed(title="Hier findest du einen Überblick über alle Kommandos:", color=0x008800)
+        help_embed = d.Embed(title=Quotes.get_quote('help/title').format(self), color=0x008800)
 
         for name, description in self.method_dict.items():
             help_embed.add_field(name=self.prefix + name, value=description, inline=False)
 
-        help_embed.set_footer(text='Tipp: Du kannst auch ".command -h" schreiben, um eine\n detaillierte Hilfe nur zu diesem Kommando zu erhalten')
+        help_embed.set_footer(text=Quotes.get_quote('help/hint').format(self))
         return await msg.post(embed=help_embed)
 
 
@@ -265,7 +264,7 @@ class MyBot(d.Client):
         # takes the first number in the message
         number = int(next(filter(lambda word: word.isnumeric(), msg.words), 0))
         if not number:
-            raise InvalidArgumentsException('No number of messages was given to spam', cause=Cause.NOT_A_NUMBER, goal=Goal.SPAM, arguments=msg.words)
+            raise InvalidArgumentsException('No number of messages to spam was given', cause=Cause.NOT_A_NUMBER, goal=Goal.SPAM, arguments=msg.words)
         for i in range(number):
             await msg.post(i + 1)
             # after every five messages, run the typing animation, as the bot has to wait until the HTTP-POST rate limit bucket has refilled
@@ -286,8 +285,8 @@ class MyBot(d.Client):
 
         # get a confirmation from the user first before deleting
         delete_confirmation = UserInteractionHandler(self, msg)
-        question = f'{self.name} würde nun {number} Nachrichten löschen. Fortsetzen? (y/n)'
-        abort_msg = f'Ist gut, {self.name} löscht nichts'
+        question = Quotes.get_quote('deletion/question').format(self, number=number)
+        abort_msg = Quotes.get_quote('deletion/abort').format(self)
         confirmed, extra_messages = await delete_confirmation.get_confirmation(question=question, abort_msg=abort_msg)
 
         # we also want the messages needed for the confirmation process to disappear
@@ -301,7 +300,7 @@ class MyBot(d.Client):
             trashcan = await msg.chat.history(limit=deletion_stack).flatten()
             await msg.chat.delete_messages(trashcan)
             remaining -= deletion_stack
-        await msg.post(f'{number} Nachrichten gelöscht', ttl=5.0)
+        await msg.post(Quotes.get_quote('deletion/done').format(self, number=number), ttl=5.0)
 
 
     async def set_reminder(self, msg: MsgContainer) -> None | ReminderNotFoundException | InvalidArgumentsException:
@@ -349,19 +348,9 @@ class MyBot(d.Client):
             raise InvalidArgumentsException('Cannot set reminder for datetime in the past', cause=Cause.TIMESTAMP_IN_THE_PAST,
                                             goal=Goal.REMINDER_SET, arguments=timestamp)
 
-        # get a confirmation from the user first before deleting
-        reminder_confirmation = UserInteractionHandler(self, msg)
-        question = f'Reminder für <@!{user.id}> am **<t:{epoch}:d>** um **{time}** mit dem Text:\n_{memo}_\nPasst das so? (y/n)'
-        abort_msg = f'Na dann, lassen wir das'
-        confirmed, num = await reminder_confirmation.get_confirmation(question=question, abort_msg=abort_msg)
-
-        # if the user wants to abort the task, stop execution
-        if not confirmed:
-            return
-
         # write the new reminder to the database
         await self.db.push_reminder(msg, timestamp_localized, memo)
-        await msg.post(f'Reminder erfolgreich gesetzt! {self.name} wird dich wie gewünscht erinnern UwU')
+        await msg.post(Quotes.get_quote('reminder/setDone').format(self, uid=user.id, date=epoch, time=time, memo=memo))
 
         # the newly created reminder might be due earlier than the current next task, so we need to restart the watchdog
         for task in asyncio.all_tasks():
@@ -373,16 +362,14 @@ class MyBot(d.Client):
 
 
     async def __add_timezone(self, msg: MsgContainer) -> str:
-        default_tz = 'Europe/Berlin'
+        default_tz = Quotes.get_quote('timezone/default')
         timezone_interrogation = UserInteractionHandler(self, msg)
-        question = f'Du hast noch nie deine Zeitzone angegeben.\n' \
-                   f'Möchtest du die Standardzeitzone {default_tz} wählen? (y/n)'
-        abort_msg = f'Na dann, welche Zeitzone soll es denn sein?\n' \
-                    f'Sag {self.name} den ungefähren Namen der Zeitzone, das sind meist Hauptstädte (Beispiel: **Europe/Berlin**)'
-        confirmed, _ = await timezone_interrogation.get_confirmation(question=question, abort_msg=abort_msg)
+        want_default = Quotes.get_quote('timezone/firstTime').format(self, default_tz=default_tz)
+        start_selection = Quotes.get_quote('timezone/selection/start').format(self)
+        confirmed, _ = await timezone_interrogation.get_confirmation(question=want_default, abort_msg=start_selection)
         if confirmed:
             await self.db.update_timezone(msg.user, default_tz)
-            await msg.post(f'Alright, deine Zeitzone ist jetzt auf {default_tz} gesetzt!')
+            await msg.post(Quotes.get_quote('timezone/selection/done').format(self, new_tz=default_tz))
             return default_tz
 
         # choose a different timezone
@@ -391,7 +378,7 @@ class MyBot(d.Client):
         if not timezone:
             raise FruitlessChoosingException(f"Failed to select a timezone for the user {msg.user.display_name}, most likely due to a timeout", cause=Cause(0))
         await self.db.update_timezone(msg.user, timezone)
-        await msg.post(f'Alright, deine Zeitzone ist jetzt auf {timezone} gesetzt!')
+        await msg.post(Quotes.get_quote('timezone/selection/done').format(self, new_tz=timezone))
         return timezone
 
 
@@ -403,25 +390,25 @@ class MyBot(d.Client):
 
         # if the match is very clear, ask the user if that's the correct timezone
         if (scores[0][1] == 100 and scores[1][1] < 100) or 0.8 * scores[0][1] > scores[1][1]:
-            question = f'Meintest du {scores[0][0]}? (y/n)'
-            abort_msg = f'Hm, dann lass mal schauen, was {self.name} sonst so findet...'
+            question = Quotes.get_quote('timezone/selection/didYouMean').format(self, best_match=scores[0][0])
+            abort_msg = Quotes.get_quote('timezone/selection/otherResults').format(self)
             confirmed, _ = await interaction.get_confirmation(question=question, abort_msg=abort_msg)
             if confirmed:
                 return scores[0][0]     # return the timezone that matched with the highest score
             # if the user rejected our offer, continue with the usual timezone choosing procedure below
 
         # let the user choose either one of those highest ranking timezones or search again with another string
-        tz_selection: str = f"Folgende Zeitzonen sind deiner Anfrage am ähnlichsten:\n" + \
+        tz_selection: str = Quotes.get_quote('timezone/selection/mostSimilar').format(self) + \
                             "\n".join([str(i + 1) + ') ' + match[0]    # '1) Europe/Berlin' (example)
                                       for i, match in enumerate(scores)  # iterate through every element in the list
                                       if i < 5 or match[1] == scores[0][1]])  # take the first 5, potentially more if they have the same score as the 1st element
 
         if len(scores) == result_limit:
-            tz_selection += "\n...und eventuell weitere - bitte verwende einen genaueren Suchbegriff!"
+            tz_selection += Quotes.get_quote('timezone/selection/andMore').format(self)
         await interaction.talk(tz_selection)
 
-        choose_one: str = f"Wähle eine dieser Zeitzonen, indem du mit der **entsprechenden Zahl** antwortest, oder gib {self.name} einen **neuen Suchbegriff**"
-        hint: str = "...\n**Ok warte**, schau mal, hier findest du eine Liste aller Zeitzonen:\nhttps://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
+        choose_one: str = Quotes.get_quote('timezone/selection/chooseOne').format(self)
+        hint: str = Quotes.get_quote('timezone/selection/hint').format(self)
         response: str = await interaction.get_response(question=choose_one, hint_msg=hint, hint_on_try=3)
 
         if not response:
@@ -449,22 +436,22 @@ class MyBot(d.Client):
 
         # if we already have an entry for this user, and he chose a timezone before, they can change it
         change_tz_interaction = UserInteractionHandler(self, msg)
-        question = f"Deine aktuelle Zeitzone lautet '{user_data.tz}'.\n" \
-                   f'Möchtest du deine Zeitzone anpassen? (y/n)'
-        abort_msg = f'Na dann :>'
+        question = Quotes.get_quote('timezone/info').format(tz=user_data.tz)
+        abort_msg = Quotes.get_quote('abort/happy')
         confirmed, _ = await change_tz_interaction.get_confirmation(question=question, abort_msg=abort_msg)
 
         if not confirmed:
             return  # apparently the user didn't want to change his timezone
         # let the user choose a new timezone
-        question = 'Soso, was möchtest du denn haben?\n' \
-                   f'Gib {self.name} den ungefähren Namen der Zeitzone, meist Hauptstädte (Beispiel: **Europe/Berlin**)'
+        question = Quotes.get_quote('timezone/selection/start').format(self)
         timezone_guess = await change_tz_interaction.get_response(question=question)
         timezone: str = await self.__choose_timezone(change_tz_interaction, timezone_guess)
+
         if not timezone:
-            return await msg.post(f'Da ist wohl etwas schiefgegangen :/  {self.name} konnte deine Zeitzone leider nicht ändern')
+            return await msg.post(Quotes.get_quote('timezone/selection/error').format(self))
+
         await self.db.update_timezone(msg.user, timezone)
-        return await msg.post(f'Geschafft! {self.name} hat deine Zeitzone nun auf {timezone} gesetzt!')
+        return await msg.post(Quotes.get_quote('timezone/selection/done').format(self, new_tz=timezone))
 
 
     # returns an embed, listing all reminders that are currently in the database
@@ -483,12 +470,13 @@ class MyBot(d.Client):
             raise ReminderNotFoundException('There are no upcoming reminders at the moment', cause=Cause.EMPTY_DB)
 
         # create an embed to neatly display the upcoming reminders
-        reminder_embed = d.Embed(title="Die nächsten Reminder sind...", color=0x660000)
+        reminder_embed = d.Embed(title=Quotes.get_quote('reminder/show/title').format(self), color=0x660000)
         for i, rem in enumerate(next_reminders):
             user = self.get_user(rem.user_id)
             epoch = round(rem.due_date.timestamp())
-            reminder_embed.add_field(name=f'({i+1}) <t:{epoch}:d>, <t:{epoch}:t> an {user.display_name}:', value=rem.memo, inline=False)
-        reminder_embed.set_footer(text='Tipp: Verwende ".remindme -d <Nummer>", um den\nReminder mit gegebener Nummer zu löschen')
+            reminder_entry: str = Quotes.get_quote('reminder/show/entry').format(self, index=i+1, epoch=epoch, user=user)
+            reminder_embed.add_field(name=reminder_entry, value=rem.memo, inline=False)
+        reminder_embed.set_footer(text=Quotes.get_quote('reminder/show/hint').format(self))
         return reminder_embed
 
 
@@ -518,14 +506,13 @@ class MyBot(d.Client):
 
         # get a confirmation from the user first before deleting
         reminder_confirmation = UserInteractionHandler(self, msg)
-        question = f'Reminder für <@!{del_rem.user_id}> am **{date}** um **{time}** mit dem Text:\n_{del_rem.memo}_\nwird nun **gelöscht**.' \
-                   f'\nFortsetzen? (y/n)'
-        abort_msg = f'Alles klar, der Reminder bleibt'
-        confirmed, num_of_messages = await reminder_confirmation.get_confirmation(question=question, abort_msg=abort_msg)
+        deletion_summary = Quotes.get_quote('reminder/deletion/summary').format(self, rem=del_rem, date=date, time=time)
+        abort_msg = Quotes.get_quote('reminder/deletion/abort').format(self)
+        confirmed, num_of_messages = await reminder_confirmation.get_confirmation(question=deletion_summary, abort_msg=abort_msg)
         if not confirmed:
             return  # deletion aborted
         await self.db.delete_reminder(del_rem)
-        return await msg.post("Reminder erfolgreich gelöscht!")
+        return await msg.post(Quotes.get_quote('reminder/deletion/done').format(self))
 
 
     @staticmethod
@@ -540,7 +527,6 @@ class MyBot(d.Client):
     # TODO: enable the use of relative time intervals (1 day, 2 hours, etc.) when setting a reminder
 
     # general improvements
-    # TODO: use JSON for every text string of the bot
     # TODO: set the default channel and debug channel id as os variables!!
 
     # delete command

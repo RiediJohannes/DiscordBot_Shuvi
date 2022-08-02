@@ -10,7 +10,7 @@ from quote_server import QuoteServer as Quotes
 class ErrorHandler:
 
     def __init__(self, bot_name: str, logger: Logger, debug_channel):
-        self.bot = bot_name
+        self.bot_name = bot_name
         self.log = logger
         self.debug = debug_channel
 
@@ -35,59 +35,55 @@ class ErrorHandler:
         debug_message += "```yaml\n" + error_log + "```"
         await self.debug.send(debug_message)
 
-        # react to exception
-        await self.__react(exp, user_msg)
+        # send feedback message to the channel of the message that caused the error
+        if user_msg:
+            feedback = self.__react(exp)
+            await user_msg.post(feedback)
 
 
-    async def __react(self, exp: Exception, msg: MsgContainer):
+    def __react(self, exp: Exception) -> str:
         # default message if an unknown error occurred
-        feedback = 'Ups, hier hat irgendwas nicht ganz geklappt .-.'
+        feedback = Quotes.get_quote('exceptions/default').format(exp)
+
+        if not isinstance(exp, BotBaseException):
+            return feedback
+
+        exp.bot = self.bot_name
 
         match exp:
             case UnknownCommandException(goal=Goal.HELP) as exp:
-                feedback = f"Es gibt kein Kommando '{exp.cmd}' du kek"
+                feedback = Quotes.get_quote('exceptions/unknownCommand/help').format(exp)
             case UnknownCommandException():
-                feedback = f'Dieses Kommando kennt {self.bot} leider nicht :/'
+                feedback = Quotes.get_quote('exceptions/unknownCommand/default').format(exp)
 
             case QuoteServerException(cause=Cause.INVALID_JSON_PATH):
-                feedback = f'{self.bot} weiß leider nicht, was sie dazu sagen soll .-.'
+                feedback = Quotes.get_quote('exceptions/quoteServer/invalidJSONPath').format(exp)
             case QuoteServerException(cause=Cause.NOT_AN_ENDPOINT):
-                feedback = f'Es gibt zu viele Antwortmöglichkeiten, {self.bot} weiß nicht, wie sie darauf reagieren soll D:'
+                feedback = Quotes.get_quote('exceptions/quoteServer/notAnEndpoint').format(exp)
 
             case AuthorizationException() as exp:
-                feedback = 'Du kannst nicht einfach den Reminder von jemand anderem löschen, wtf?\n' \
-                           '-- _{0} hat versucht den Reminder "{1}" von <@{2}> zu löschen._ --' \
-                            .format(exp.accessor.display_name, exp.resource.memo, exp.owner)
+                feedback = Quotes.get_quote('exceptions/authorization').format(exp)
 
             case ReminderNotFoundException(cause=Cause.EMPTY_DB):
-                feedback = f'Aktuell scheint es gar keine anstehenden Reminder zu geben. Niemand nutzt {self.bot}s Hilfe :('
+                feedback = Quotes.get_quote('exceptions/reminderNotFound').format(exp)
 
             case IndexOutOfBoundsException() as exp:
-                feedback = '{0}? Sorry aber so viele Reminder kennt {1} aktuell gar nicht'.format(exp.index + 1, self.bot)
+                feedback = Quotes.get_quote('exceptions/indexOutOfBounds').format(exp, index=exp.index + 1)
 
             case InvalidArgumentsException(cause=Cause.NOT_A_NUMBER, goal=Goal.REMINDER_DEL):
-                feedback = f'Welchen Reminder möchtest du denn löschen? {self.bot} benötigt eine Nummer von dir'
+                feedback = Quotes.get_quote('exceptions/invalidArguments/NaN/remDel').format(exp)
             case InvalidArgumentsException(cause=Cause.NOT_A_NUMBER, goal=Goal.SPAM):
-                feedback = f'Eine Zahl wäre schön, meinst du nicht?'
+                feedback = Quotes.get_quote('exceptions/invalidArguments/NaN/spam').format(exp)
             case InvalidArgumentsException(cause=Cause.NOT_A_NUMBER):
-                feedback = f'{self.bot} konnte in deiner Nachricht keine Nummer finden :|'
+                feedback = Quotes.get_quote('exceptions/invalidArguments/NaN/default').format(exp)
 
             case InvalidArgumentsException(cause=Cause.DATE_NOT_FOUND, goal=Goal.REMINDER_SET):
-                feedback = f'Irgendwie kann {self.bot} da kein korrektes Datum sehen. Bitte verwende die Notation **dd.mm.yyyy** (oder kurz **d.m.yy**, geht auch)'
+                feedback = Quotes.get_quote('exceptions/invalidArguments/dateNotFound/remSet').format(exp)
             case InvalidArgumentsException(cause=Cause.TIME_NOT_FOUND, goal=Goal.REMINDER_SET):
-                feedback = f'Zu welcher Zeit soll {self.bot} dich denn erinnern? Bitte verwende die Notation **hh:mm**'
+                feedback = Quotes.get_quote('exceptions/invalidArguments/timeNotFound/remSet').format(exp)
             case InvalidArgumentsException(cause=Cause.INCORRECT_DATETIME, goal=Goal.REMINDER_SET):
-                feedback = f'Bei deinem Datum oder deiner Uhrzeit scheint irgendwas nicht ganz zu passen'
+                feedback = Quotes.get_quote('exceptions/invalidArguments/incorrectDatetime/remSet').format(exp)
             case InvalidArgumentsException(cause=Cause.TIMESTAMP_IN_THE_PAST, goal=Goal.REMINDER_SET):
-                feedback = f'Sag mal, du möchtest einen Reminder in der Vergangenheit setzen? Na das ist ja sehr sinnvoll'
+                feedback = Quotes.get_quote('exceptions/invalidArguments/timestampInThePast/remSet').format(exp)
 
-        # send feedback message to the channel of the message that caused the error
-        if msg:
-            await msg.post(feedback)
-
-
-    # TODO: if we ever need to use the bot_name in quotes that are not handled by the ErrorHandler, we could just
-    # move this logic to the QuoteServer class - though we would have to make it instantiable with the bot's name
-    def __fetch_quote(self, quote_path: str) -> str:
-        raw_quote = Quotes.get_quote(quote_path)
-        return raw_quote.replace("{botName}", self.bot)
+        return feedback
