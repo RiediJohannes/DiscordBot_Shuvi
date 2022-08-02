@@ -87,7 +87,6 @@ class MyBot(d.Client):
         try:
             # confirm successful bot startup with a message into to 'bot' channel on my private server
             chat = self.get_channel(955511857156857949)
-            # await chat.send(self.name + ' ist nun hochgefahren!')
             await chat.send(Quotes.get_quote('greetings'))
 
         except Exception as exp:
@@ -342,8 +341,7 @@ class MyBot(d.Client):
         timestamp_localized = user_tz.localize(timestamp)  # add timezone information to the timestamp
 
         # check if the reminder datetime has already passed (with regard to the user's timezone ofc)
-        now = pytz.utc.localize(datetime.datetime.now())
-        now.replace(tzinfo=user_tz)  # shift the "now" timestamp to fit the users timezone
+        now = datetime.datetime.now(user_tz)
         if timestamp_localized < now:
             raise InvalidArgumentsException('Cannot set reminder for datetime in the past', cause=Cause.TIMESTAMP_IN_THE_PAST,
                                             goal=Goal.REMINDER_SET, arguments=timestamp)

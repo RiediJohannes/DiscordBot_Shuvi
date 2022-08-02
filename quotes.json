@@ -9,11 +9,12 @@
     ],
 
     "affirmations": [
-        "yes", "y", "ja", "jo", "jup", "jap", "jö", "j", "hai", "un"
+        "yes", "y", "ja", "jo", "jup", "jap", "jep", "jö", "j", "hai", "un", "ok", "passt", "perfekt", "guat"
     ],
     
     "rejections": [
-        "no", "n", "nein", "na", "nö", "nee", "ney", "nope", "stop", "cancel", "halt", "iie", "yada", "iya", "unn"
+        "no", "n", "nein", "na", "nö", "nee", "neee", "ney", "nope", "nix da", "stop", "cancel", "halt", "iie", "yada", "iya", "unn",
+        "was", "what"
     ],
 
     "spam_end": [
