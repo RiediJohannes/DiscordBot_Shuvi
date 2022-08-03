@@ -1,9 +1,9 @@
 import uuid
 from dataclasses import dataclass
-
-from msg_container import MsgContainer
 from datetime import datetime
 from typing import Tuple
+
+from src.wrapper.msg_container import MsgContainer
 
 
 @dataclass(frozen=True)

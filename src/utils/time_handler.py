@@ -1,8 +1,9 @@
 import re
 from datetime import datetime
-from errors import *
-from msg_container import MsgContainer
-from quote_server import QuoteServer
+
+from src.exceptions.errors import *
+from src.wrapper.msg_container import MsgContainer
+from src.localization.quote_server import QuoteServer
 
 
 class TimeHandler:

@@ -2,9 +2,9 @@ import traceback as tb
 import inspect    # my_stack = inspect.stack()
 
 from logging import Logger
-from errors import *
-from msg_container import MsgContainer
-from quote_server import QuoteServer as Quotes
+from src.exceptions.errors import *
+from src.wrapper.msg_container import MsgContainer
+from src.localization.quote_server import QuoteServer as Quotes
 
 
 class ErrorHandler:

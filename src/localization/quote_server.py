@@ -1,7 +1,7 @@
 import json
 import random
 
-from errors import *
+from src.exceptions.errors import *
 
 # In the future, maybe make this a sort of generic class that works on a given .json
 # document. The class shall only work on one file at a time but the user has to
@@ -13,7 +13,7 @@ from errors import *
 
 
 class QuoteServer:
-    filename: str = 'quotes.json'
+    filename: str = 'src/localization/quotes.json'
 
     # load all the data from the json file
     with open(filename, encoding='utf-8') as json_file:

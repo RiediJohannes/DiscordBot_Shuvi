@@ -10,13 +10,13 @@ import pytz
 from typing import List, Tuple
 from logger import CustomFormatter
 from fuzzywuzzy import fuzz, process
-from errors import *
-from error_handler import ErrorHandler
-from time_handler import TimeHandler
-from msg_container import MsgContainer
-from user_interaction_handler import UserInteractionHandler
-from database_wrapper import DatabaseWrapper, Reminder, DBUser
-from quote_server import QuoteServer as Quotes
+from wrapper.msg_container import MsgContainer
+from wrapper.database_wrapper import DatabaseWrapper, Reminder, DBUser
+from localization.quote_server import QuoteServer as Quotes
+from utils.time_handler import TimeHandler
+from utils.user_interaction_handler import UserInteractionHandler
+from exceptions.errors import *
+from exceptions.error_handler import ErrorHandler
 
 
 async def __startup():
