@@ -1,4 +1,5 @@
 import traceback as tb
+import os
 import inspect    # my_stack = inspect.stack()
 
 from logging import Logger
@@ -31,7 +32,7 @@ class ErrorHandler:
         if isinstance(exp, BotBaseException):
             debug_message = f"Bekannte Exception verursacht durch {username}:"
         else:
-            debug_message = f"<@!178992018788188162> Unbekannte Exception verursacht durch {username}:"
+            debug_message = f"<@!{os.environ.get('LUIGI_FAN_ID', None)}> Unbekannte Exception verursacht durch {username}:"
         debug_message += "```yaml\n" + error_log + "```"
         await self.debug.send(debug_message)
 

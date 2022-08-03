@@ -81,12 +81,12 @@ class MyBot(d.Client):
         logger.info('Logged on as {0}!'.format(self.user))
 
         # setup ErrorHandler to process errors during runtime
-        debug_channel = self.get_channel(980170587643211856)
+        debug_channel = self.get_channel(int(os.environ.get("DEBUG_CHANNEL", None)))
         self.error_handler = ErrorHandler(self.name, logger, debug_channel)
 
         try:
             # confirm successful bot startup with a message into to 'bot' channel on my private server
-            chat = self.get_channel(955511857156857949)
+            chat = self.get_channel(int(os.environ.get("TEST_CHANNEL", None)))
             await chat.send(Quotes.get_quote('greetings'))
 
         except Exception as exp:
@@ -525,7 +525,7 @@ class MyBot(d.Client):
     # TODO: enable the use of relative time intervals (1 day, 2 hours, etc.) when setting a reminder
 
     # general improvements
-    # TODO: set the default channel and debug channel id as os variables!!
+    # TODO: make greeting dependant on current time?
 
     # delete command
     # TODO: check user rights when deleting messages

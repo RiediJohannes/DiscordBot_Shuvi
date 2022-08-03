@@ -1,4 +1,5 @@
 import uuid
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Tuple
@@ -20,8 +21,8 @@ class DBUser:
 @dataclass(frozen=True)
 class Reminder:
     rem_id: uuid.UUID
-    user_id: int = 178992018788188162       # defaults to my account 'Luigi-Fan'
-    channel_id: int = 955511857156857949    # defaults to 'bot' channel on my private 'SR388' server
+    user_id: int = os.environ.get("LUIGI_FAN_ID", None)       # defaults to my account 'Luigi-Fan'
+    channel_id: int = os.environ.get("TEST_CHANNEL", None)    # defaults to 'bot' channel on my private 'SR388' server
     due_date: datetime = None
     memo: str = 'Keine Nachricht spezifiziert'
 
