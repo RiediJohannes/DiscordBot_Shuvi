@@ -12,7 +12,8 @@ class Cause(Enum):
     INCORRECT_DATETIME = 7
     TIMESTAMP_IN_THE_PAST = 8
     INVALID_JSON_PATH = 9
-    NOT_AN_ENDPOINT = 10
+    NOT_A_LIST = 10
+    NOT_A_DICT = 11
     INSUFFICIENT_ARGUMENTS = 20
 
 
@@ -82,7 +83,7 @@ class IndexOutOfBoundsException(BotBaseException):
 
 class QuoteServerException(BotBaseException):
 
-    def __init__(self, err_message: str, cause: Cause, *args, quote_path: str, error_node: str, **kwargs):
+    def __init__(self, err_message: str, cause: Cause, *args, quote_path: str, error_node: str = None, **kwargs):
         super().__init__(err_message, args, kwargs, cause=cause)
         self.path = quote_path
         self.node = error_node

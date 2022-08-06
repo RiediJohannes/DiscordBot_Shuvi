@@ -87,7 +87,7 @@ class MyBot(d.Client):
         try:
             # confirm successful bot startup with a message into to 'bot' channel on my private server
             chat = self.get_channel(int(os.environ.get("TEST_CHANNEL", None)))
-            await chat.send(Quotes.get_quote('greetings'))
+            await chat.send(Quotes.get_quote('startup').format(self))
 
         except Exception as exp:
             # forward any exception to the ErrorHandler
@@ -311,10 +311,6 @@ class MyBot(d.Client):
         # option 2: the user wants to delete a reminder
         if '-d' in msg.options or '-delete' in msg.options:
             return await self.delete_reminder(msg)
-
-        # if (arg_count := len(msg.words)) < 3:
-        #     raise InvalidArgumentsException(f"set_reminder expects 3 arguments, got only {arg_count}", cause=Cause.INSUFFICIENT_ARGUMENTS,
-        #                                     arguments=msg.text, expected=3, got=arg_count)
 
         # parse memo and timestamp from user message
         reminder_parser = TimeHandler()

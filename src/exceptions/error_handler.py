@@ -59,8 +59,10 @@ class ErrorHandler:
 
             case QuoteServerException(cause=Cause.INVALID_JSON_PATH):
                 feedback = Quotes.get_quote('exceptions/quoteServer/invalidJSONPath').format(exp)
-            case QuoteServerException(cause=Cause.NOT_AN_ENDPOINT):
-                feedback = Quotes.get_quote('exceptions/quoteServer/notAnEndpoint').format(exp)
+            case QuoteServerException(cause=Cause.NOT_A_LIST):
+                feedback = Quotes.get_quote('exceptions/quoteServer/notAList').format(exp)
+            case QuoteServerException(cause=Cause.NOT_A_LIST):
+                feedback = Quotes.get_quote('exceptions/quoteServer/notADict').format(exp)
 
             case AuthorizationException() as exp:
                 feedback = Quotes.get_quote('exceptions/authorization').format(exp)
