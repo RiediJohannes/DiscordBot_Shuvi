@@ -19,11 +19,11 @@ class TimeHandler:
         self.date_set = False
 
         memo: str = self.get_memo(msg)
-        text = msg.text.replace(memo.casefold(), "")
-        timestamp = self.__get_absolute_datetime(text)
+        relevant_text: str = msg.text.replace(memo.casefold(), "")   # don't consider text inside quote marks
+        timestamp = self.__get_absolute_datetime(relevant_text)
 
         if not (self.date_set and self.time_set):
-            timestamp = self.__get_relative_datetime(timestamp, text)
+            timestamp = self.__get_relative_datetime(timestamp, relevant_text)
 
         if not self.date_set:
             raise InvalidArgumentsException(f"Could not parse reminder date from {msg.text}", cause=Cause.DATE_NOT_FOUND, goal=Goal.REMINDER_SET,
@@ -80,6 +80,16 @@ class TimeHandler:
                 if match:
                     units[unit] = value
 
+        # check for date keywords which explicitly take the current date
+        for modifier in Quotes.get_choices(f'timestamp/futileKeywords/date'):
+            if modifier in text:
+                self.date_set = True
+
+        # check for time keywords which explicitly take the current time
+        for modifier in Quotes.get_choices(f'timestamp/futileKeywords/time'):
+            if modifier in text:
+                self.time_set = True
+
         # confirm the existence of a date/time unit
         units_set = {unit: count for unit, count in units.items() if count != 0}
         if any(unit in time_units for unit in units_set):   # checks for any common element in time_units and units_set
@@ -104,11 +114,11 @@ class TimeHandler:
 
             return datetime.strptime(date_str, '%d.%m.%Y').date()
         except ValueError as exp:
-            raise InvalidArgumentsException(str(exp), cause=Cause.INCORRECT_DATETIME, goal=Goal.REMINDER_SET, arguments=date_str)
+            raise InvalidArgumentsException(str(exp), cause=Cause.INCORRECT_DATE, goal=Goal.REMINDER_SET, arguments=date_str)
 
     @staticmethod
     def __parse_time(time_str: str) -> datetime.time:
         try:
             return datetime.strptime(time_str, '%H:%M').time()
         except ValueError as exp:
-            raise InvalidArgumentsException(str(exp), cause=Cause.INCORRECT_DATETIME, goal=Goal.REMINDER_SET, arguments=time_str)
+            raise InvalidArgumentsException(str(exp), cause=Cause.INCORRECT_TIME, goal=Goal.REMINDER_SET, arguments=time_str)

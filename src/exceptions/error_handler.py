@@ -84,8 +84,10 @@ class ErrorHandler:
                 feedback = Quotes.get_quote('exceptions/invalidArguments/dateNotFound/remSet').format(exp)
             case InvalidArgumentsException(cause=Cause.TIME_NOT_FOUND, goal=Goal.REMINDER_SET):
                 feedback = Quotes.get_quote('exceptions/invalidArguments/timeNotFound/remSet').format(exp)
-            case InvalidArgumentsException(cause=Cause.INCORRECT_DATETIME, goal=Goal.REMINDER_SET):
-                feedback = Quotes.get_quote('exceptions/invalidArguments/incorrectDatetime/remSet').format(exp)
+            case InvalidArgumentsException(cause=Cause.INCORRECT_DATE, goal=Goal.REMINDER_SET):
+                feedback = Quotes.get_quote('exceptions/invalidArguments/incorrectDate/remSet').format(exp)
+            case InvalidArgumentsException(cause=Cause.INCORRECT_TIME, goal=Goal.REMINDER_SET):
+                feedback = Quotes.get_quote('exceptions/invalidArguments/incorrectTime/remSet').format(exp)
             case InvalidArgumentsException(cause=Cause.TIMESTAMP_IN_THE_PAST, goal=Goal.REMINDER_SET):
                 feedback = Quotes.get_quote('exceptions/invalidArguments/timestampInThePast/remSet').format(exp)
 
