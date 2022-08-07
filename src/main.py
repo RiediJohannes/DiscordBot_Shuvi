@@ -174,7 +174,7 @@ class MyBot(d.Client):
             return
 
         # create a custom message object from the real message object
-        msg = MsgContainer(message)
+        msg = MsgContainer(message, self.db)
 
         try:
             # check for command at message begin
@@ -322,14 +322,8 @@ class MyBot(d.Client):
         time = timestamp.time().isoformat(timespec='minutes')  # get the time in standardized format (hh:mm)
 
         # fetch user data from the database
-        user_data = await self.db.fetch_user_entry(user)
-        if not user_data:
-            # create an entry for the sender in the users() relation if there isn't one already
-            await self.db.create_user_entry(user)
-            # as the user was None, we need to create a new user object with the chosen timezone
-            new_timezone = await self.__add_timezone(msg)
-            user_data = DBUser(-1, "None", "None", new_timezone)
-        elif not user_data.tz:
+        user_data = await msg.db_user
+        if not user_data.tz:
             # if the user hasn't defined a timezone yet, add one
             user_data.tz = await self.__add_timezone(msg)
 
@@ -417,14 +411,10 @@ class MyBot(d.Client):
 
     async def change_timezone(self, msg: MsgContainer) -> None:
         # fetch data about the user from the database
-        user_data = await self.db.fetch_user_entry(msg.user)
-        if not user_data:
-            # create an entry for the sender in the users() relation if there isn't one already
-            await self.db.create_user_entry(msg.user)
-            user_data.tz = await self.__add_timezone(msg)
-            return
+        user_data = await msg.db_user
+
+        # if the user hasn't defined a timezone yet, add one
         if not user_data.tz:
-            # if the user hasn't defined a timezone yet, add one
             user_data.tz = await self.__add_timezone(msg)
             return
 

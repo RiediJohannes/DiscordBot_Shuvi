@@ -1,13 +1,12 @@
 import uuid
 import os
+import discord as d
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Tuple
 
-from src.wrapper.msg_container import MsgContainer
 
-
-@dataclass(frozen=True)
+@dataclass()
 class DBUser:
     id: int     # user id on discord
     name: str   # username
@@ -105,7 +104,7 @@ class DatabaseWrapper:
         await self.database_connection.execute("DELETE FROM reminder WHERE date_time_zone < current_timestamp - INTERVAL '2 day';")
 
 
-    async def fetch_user_entry(self, user) -> DBUser | None:
+    async def fetch_user_entry(self, user: d.User) -> DBUser | None:
         user_entry = await self.database_connection.fetchrow(f"""
             SELECT user_id, username, discriminator, time_zone
             FROM users
@@ -126,7 +125,7 @@ class DatabaseWrapper:
         """)
 
 
-    async def push_reminder(self, msg: MsgContainer, timestamp: datetime, memo: str) -> None:
+    async def push_reminder(self, msg, timestamp: datetime, memo: str) -> None:
         # escape potential single quotes in the message (works in SQL by doubling up the single quotes)
         memo = memo.replace("'", "''")
         # write the new reminder to the database
