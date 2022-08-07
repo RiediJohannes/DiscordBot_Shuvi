@@ -312,6 +312,12 @@ class MyBot(d.Client):
         if '-d' in msg.options or '-delete' in msg.options:
             return await self.delete_reminder(msg)
 
+        # fetch user data from the database
+        user_data = await msg.db_user
+        if not user_data.tz:
+            # if the user hasn't defined a timezone yet, add one
+            user_data.tz = await self.__add_timezone(msg)
+
         # parse memo and timestamp from user message
         reminder_parser = TimeHandler()
         timestamp: datetime.datetime = await reminder_parser.get_timestamp(msg)
@@ -320,15 +326,8 @@ class MyBot(d.Client):
         user = msg.user
         epoch = round(timestamp.timestamp())  # convert timestamp to UNIX epoch in order to display them as discord timestamp
 
-        # fetch user data from the database
-        user_data = await msg.db_user
-        if not user_data.tz:
-            # if the user hasn't defined a timezone yet, add one
-            user_data.tz = await self.__add_timezone(msg)
-
-        user_tz = pytz.timezone(user_data.tz)
-
         # check if the reminder datetime has already passed (with regard to the user's timezone ofc)
+        user_tz = pytz.timezone(user_data.tz)
         now = datetime.datetime.now(user_tz)
         if timestamp < now:
             raise InvalidArgumentsException('Cannot set reminder for datetime in the past', cause=Cause.TIMESTAMP_IN_THE_PAST,
