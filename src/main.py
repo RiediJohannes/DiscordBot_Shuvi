@@ -11,7 +11,7 @@ from typing import List, Tuple
 from logger import CustomFormatter
 from fuzzywuzzy import fuzz, process
 from wrapper.msg_container import MsgContainer
-from wrapper.database_wrapper import DatabaseWrapper, Reminder, DBUser
+from wrapper.database_wrapper import DatabaseWrapper, Reminder
 from localization.quote_server import QuoteServer as Quotes
 from utils.time_handler import TimeHandler
 from utils.user_interaction_handler import UserInteractionHandler
@@ -314,12 +314,11 @@ class MyBot(d.Client):
 
         # parse memo and timestamp from user message
         reminder_parser = TimeHandler()
-        timestamp: datetime.datetime = reminder_parser.get_timestamp(msg)
+        timestamp: datetime.datetime = await reminder_parser.get_timestamp(msg)
         memo: str = reminder_parser.get_memo(msg)
 
         user = msg.user
         epoch = round(timestamp.timestamp())  # convert timestamp to UNIX epoch in order to display them as discord timestamp
-        time = timestamp.time().isoformat(timespec='minutes')  # get the time in standardized format (hh:mm)
 
         # fetch user data from the database
         user_data = await msg.db_user
@@ -328,17 +327,16 @@ class MyBot(d.Client):
             user_data.tz = await self.__add_timezone(msg)
 
         user_tz = pytz.timezone(user_data.tz)
-        timestamp_localized = user_tz.localize(timestamp)  # add timezone information to the timestamp
 
         # check if the reminder datetime has already passed (with regard to the user's timezone ofc)
         now = datetime.datetime.now(user_tz)
-        if timestamp_localized < now:
+        if timestamp < now:
             raise InvalidArgumentsException('Cannot set reminder for datetime in the past', cause=Cause.TIMESTAMP_IN_THE_PAST,
                                             goal=Goal.REMINDER_SET, arguments=timestamp)
 
         # write the new reminder to the database
-        await self.db.push_reminder(msg, timestamp_localized, memo)
-        await msg.post(Quotes.get_quote('reminder/setDone').format(self, uid=user.id, date=epoch, time=time, memo=memo))
+        await self.db.push_reminder(msg, timestamp, memo)
+        await msg.post(Quotes.get_quote('reminder/setDone').format(self, uid=user.id, unix=epoch, memo=memo))
 
         # the newly created reminder might be due earlier than the current next task, so we need to restart the watchdog
         for task in asyncio.all_tasks():

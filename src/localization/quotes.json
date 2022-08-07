@@ -190,7 +190,7 @@
             "Keine Nachricht spezifiziert"
         ],
         "setDone": [
-            "Reminder für <@!{uid}> am **<t:{date}:d>** um **{time}** mit dem Text:\n_{memo}_\n\nReminder erfolgreich gesetzt!"
+            "Reminder für <@!{uid}> am **<t:{unix}:d>** um **<t:{unix}:t>** mit dem Text:\n_{memo}_\n\nReminder erfolgreich gesetzt!"
         ],
         "due": [
             "Reminder an <@!{reminder.user_id}>:\n{reminder.memo}"

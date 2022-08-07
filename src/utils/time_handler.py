@@ -1,4 +1,5 @@
 import re
+import pytz
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
@@ -14,24 +15,36 @@ class TimeHandler:
         self.date_set = False
 
 
-    def get_timestamp(self, msg: MsgContainer) -> datetime:
+    async def get_timestamp(self, msg: MsgContainer) -> datetime:
         self.time_set = False
         self.date_set = False
 
+        # reduce the text to search through to everything except the memo text
         memo: str = self.get_memo(msg)
-        relevant_text: str = msg.text.replace(memo.casefold(), "")   # don't consider text inside quote marks
-        timestamp = self.__get_absolute_datetime(relevant_text)
+        relevant_text: str = msg.text.replace(memo.casefold(), "")
 
+        # get the timezone of the user to calculate their local time
+        user_data = await msg.db_user
+        user_timezone = pytz.timezone(user_data.tz)
+
+        # look for absolute date and time values (e.g. '18.06.22' or '14:25')
+        timestamp = self.__get_absolute_datetime(datetime.now(user_timezone), relevant_text)
+
+        # if either date or time was not set by an absolute value, search for relative time statements
         if not (self.date_set and self.time_set):
             timestamp = self.__get_relative_datetime(timestamp, relevant_text)
 
+        # check if reminder date and time have been made clear
         if not self.date_set:
             raise InvalidArgumentsException(f"Could not parse reminder date from {msg.text}", cause=Cause.DATE_NOT_FOUND, goal=Goal.REMINDER_SET,
                                             arguments=msg.text)
         if not self.time_set:
             raise InvalidArgumentsException(f"Could not parse reminder time from {msg.text}", cause=Cause.TIME_NOT_FOUND, goal=Goal.REMINDER_SET,
                                             arguments=msg.text)
-        return timestamp
+
+        # at last, add timezone information to the timestamp
+        timestamp_localized = user_timezone.localize(timestamp)
+        return timestamp_localized
 
 
     # finds the message in quotes inside the message and returns it
@@ -43,9 +56,9 @@ class TimeHandler:
         return Quotes.get_quote('reminder/noMemo')
 
 
-    def __get_absolute_datetime(self, text: str) -> datetime.time:
-        date = datetime.now().date()
-        time = datetime.now().time()
+    def __get_absolute_datetime(self, start_timestamp: datetime, text: str) -> datetime.time:
+        date = start_timestamp.date()
+        time = start_timestamp.time()
 
         # read date and time in message
         date_match = re.search(Quotes.get_quote('timestamp/patterns/date'), text)
@@ -95,9 +108,10 @@ class TimeHandler:
         if any(unit in time_units for unit in units_set):   # checks for any common element in time_units and units_set
             self.time_set = True
             self.date_set = True    # if a time was set, then a date is not required
-        if any(unit in date_units for unit in units_set):
+        if any(unit in date_units for unit in units_set):   # checks for any common element in date_units and units_set
             self.date_set = True
 
+        # offset the start timestamp by the values of all the units which were set
         return start_timestamp + relativedelta(**units)
 
 
