@@ -85,16 +85,17 @@ class MyBot(d.Client):
         self.error_handler = ErrorHandler(self.name, logger, debug_channel)
 
         try:
-            # confirm successful bot startup with a message into to 'bot' channel on my private server
-            chat = self.get_channel(int(os.environ.get("TEST_CHANNEL", None)))
-            await chat.send(Quotes.get_quote('startup').format(self))
+            # confirm successful bot startup with a message into to 'bot' channel on my private server, if we are in debug mode (not running on server)
+            if os.environ.get("DEBUG", 'FALSE') == 'TRUE':
+                chat = self.get_channel(int(os.environ.get("TEST_CHANNEL", None)))
+                await chat.send(Quotes.get_quote('startup').format(self))
+
+            # remove long expired reminders from database
+            await self.db.clean_up_reminders()
 
         except Exception as exp:
             # forward any exception to the ErrorHandler
             await self.error_handler.handle(exp)
-
-        # remove long expired reminders from database
-        await self.db.clean_up_reminders()
 
 
     async def watch_reminders(self):
