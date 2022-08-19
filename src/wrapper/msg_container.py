@@ -23,6 +23,7 @@ class MsgContainer:
         self.nonce = msg.nonce
         self.stickers = msg.stickers
         self.reference = msg.reference
+        self.interaction = msg.interaction
 
 
         # renamed attributes

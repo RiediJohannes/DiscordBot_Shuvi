@@ -1,5 +1,7 @@
 import asyncio
 import datetime
+import traceback
+
 import asyncpg
 import random
 import discord as d
@@ -25,8 +27,8 @@ async def __startup():
     database_connection = await asyncpg.create_pool(os.environ.get("DATABASE_URL", None), max_size=5, min_size=3)
     database = DatabaseWrapper(database_connection)
 
-    intents = d.Intents.default()
-    intents.members = True
+    # give the bot all rights and privileges
+    intents = d.Intents.all()
     # instantiate a discord bot of custom class MyBot
     bot = MyBot(name="Shuvi", db=database, prefix='.', intents=intents)
 
@@ -35,10 +37,8 @@ async def __startup():
         main_task = asyncio.create_task(bot.start(os.environ['DISCORD_TOKEN']), name='main_task')
         asyncio.create_task(bot.watch_reminders(), name='reminder_watchdog')
         await main_task
-
     finally:
         await database_connection.close()
-        await bot.close()
 
 
 def __init_logs():
@@ -155,12 +155,6 @@ class MyBot(d.Client):
         if chat:
             return chat
 
-        # if chat is none, the channel_id was most likely a private channel (dm)
-        # search through all existing private channels the bot has
-        for dm in self.private_channels:
-            if channel_id == dm.id:
-                return dm
-
         # in case we don't have a dm chat with that user yet, we need to create one
         user = self.get_user(user_id)
         return await user.create_dm()
@@ -260,17 +254,14 @@ class MyBot(d.Client):
 
     # spams the channel with messages counting up to the number given as a parameter
     @staticmethod
-    async def spam(msg: MsgContainer) -> None:
+    async def spam(_, msg: MsgContainer) -> None:
         # takes the first number in the message
         number = int(next(filter(lambda word: word.isnumeric(), msg.words), 0))
         if not number:
             raise InvalidArgumentsException('No number of messages to spam was given', cause=Cause.NOT_A_NUMBER, goal=Goal.SPAM, arguments=msg.words)
         for i in range(number):
-            await msg.post(i + 1)
-            # after every five messages, run the typing animation, as the bot has to wait until the HTTP-POST rate limit bucket has refilled
-            if (i+1) % 5 == 0:
-                async with msg.chat.typing():
-                    pass
+            async with msg.chat.typing():
+                await msg.post(i + 1)
         # end the spam with an assertive message
         await msg.post(Quotes.get_quote('spam_end'), ttl=5.0)
 
@@ -297,7 +288,7 @@ class MyBot(d.Client):
         # delete the requested count of messages
         while remaining > 0:
             deletion_stack = remaining if remaining <= 100 else 100  # 100 is the upper deletion limit set by discord's API
-            trashcan = await msg.chat.history(limit=deletion_stack).flatten()
+            trashcan = [message async for message in msg.chat.history(limit=deletion_stack)]
             await msg.chat.delete_messages(trashcan)
             remaining -= deletion_stack
         await msg.post(Quotes.get_quote('deletion/done').format(self, number=number), ttl=5.0)
@@ -522,7 +513,7 @@ class MyBot(d.Client):
 
 
     @staticmethod  # this is only static so that the compiler shuts up at the execute_command()-call above
-    async def not_found(self, msg: MsgContainer):
+    async def not_found(_, msg: MsgContainer):
         raise UnknownCommandException(f"Couldn't find command with the name {msg.cmd}", command=msg.cmd, goal=Goal(0))
 
 
@@ -542,5 +533,12 @@ class MyBot(d.Client):
 # start the program
 if __name__ == '__main__':
     logger = __init_logs()
-    # asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    asyncio.run(__startup())
+
+    try:
+        asyncio.run(__startup())
+    except KeyboardInterrupt:
+        logger.info("Client was shut down manually")
+    except:
+        logger.error("Client shut down due to an unhandled error:\n" + traceback.format_exc())
+    else:
+        logger.info("Client shut down without an error")
