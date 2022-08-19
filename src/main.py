@@ -55,21 +55,6 @@ class MyBot(d.Client):
         self.name = name
         self.db = db
         self.prefix = prefix
-
-        self.method_dict = {
-            'help': "Erhalte eine Übersicht über alle Kommandos.\n"
-                    "Auch als Option -h oder -help für jedes Kommando verfügbar",
-            'wake': f"Stubse {self.name} kurz an, um zu sehen, ob sie noch da ist",
-            'delete <anzahl>': "Lösche eine bestimmte _Anzahl_ von zuletzt gesendeten Nachrichten im aktuellen Chat. Auch jegliche Spuren des Löschvorgangs werden anschließend beseitigt.\n",
-            'spam <anzahl>': f"Lass {self.name} den aktuellen Chat mit einer bestimmten _Anzahl von Nachrichten_ vollspammen.",
-            'remindme <datum> <uhrzeit> "<nachricht>"': f"Setze einen Reminder mit einer bestimmten _Nachricht_. {self.name} wird dich dann am gewählten _Datum_ zur gewünschten _Zeit_ erinnern.\n"
-                                                        f"Verwende für das Datum die europäische Reihenfolge (dd.mm.yyyy), für die Uhrzeit die 24h-Uhr und setze deine Nachricht an Anführungszeichen.\n"
-                                                        f"Die Reihenfolge der Argumente ist jedoch egal.",
-            'remindme -s | -show': "Erhalte eine Übersicht über alle anstehenden Reminder auf dem aktuellen Server.",
-            'remindme -d | -delete <nummer>': f"Lösche den anstehenden Reminder mit einer bestimmten Nummer. Um die Nummer deines gesuchten Reminders zu erfahren, probier mal das"
-                                              f"{self.prefix}remindme -show Kommando aus. Du kannst aber logischerweise nur deinen eigenen Reminder löschen.",
-            'timezone': "Lass dir deine derzeit gewählte Zeitzone anzeigen und ändere sie bei Bedarf.",
-        }
         self.error_handler = None
 
 
@@ -226,8 +211,8 @@ class MyBot(d.Client):
     async def info(self, msg: MsgContainer):
         help_embed = d.Embed(title=Quotes.get_quote('help/title').format(self), color=0x008800)
 
-        for name, description in self.method_dict.items():
-            help_embed.add_field(name=self.prefix + name, value=description, inline=False)
+        for signature, description in Quotes.get_dict('help/commands').items():
+            help_embed.add_field(name=self.prefix + signature, value=description.format(self), inline=False)
 
         help_embed.set_footer(text=Quotes.get_quote('help/hint').format(self))
         return await msg.post(embed=help_embed)
@@ -235,7 +220,8 @@ class MyBot(d.Client):
 
     async def __get_command_info(self, msg: MsgContainer):
         # get a list of every signature for the given command
-        cmd_info = [(signature, description) for signature, description in self.method_dict.items() if msg.cmd + ' ' in signature.lower()]
+        cmd_info = [(signature, description.format(self)) for signature, description in Quotes.get_dict('help/commands').items()
+                    if signature.lower().startswith(msg.cmd)]
 
         # check if cmd_info is empty -> there is no command with the given name
         if not cmd_info:
@@ -249,8 +235,8 @@ class MyBot(d.Client):
         return await msg.post(embed=cmd_embed)
 
 
-    # spams the channel with messages counting up to the number given as a parameter
     @staticmethod
+    # spams the channel with messages counting up to the number given as a parameter
     async def spam(_, msg: MsgContainer) -> None:
         # takes the first number in the message
         number = int(next(filter(lambda word: word.isnumeric(), msg.words), 0))

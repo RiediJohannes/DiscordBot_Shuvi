@@ -59,7 +59,17 @@
         ],
         "hint": [
             "Tipp: Du kannst auch '.command -h' schreiben, um eine\n detaillierte Hilfe nur zu diesem Kommando zu erhalten"
-        ]
+        ],
+        "commands": {
+            "help": "Erhalte eine Übersicht über alle Kommandos.\nAuch als Option -h oder -help für jedes Kommando verfügbar",
+            "wake": "Stubse {0.name} kurz an, um zu sehen, ob sie noch da ist",
+            "delete <anzahl>": "Lösche eine bestimmte _Anzahl_ von zuletzt gesendeten Nachrichten im aktuellen Chat. Auch jegliche Spuren des Löschvorgangs werden anschließend beseitigt.\n",
+            "spam <anzahl>": "Lass {0.name} den aktuellen Chat mit einer bestimmten _Anzahl von Nachrichten_ vollspammen.",
+            "remindme <datum> <uhrzeit> \"<nachricht>\"": "Setze einen Reminder mit einer bestimmten _Nachricht_. {0.name} wird dich dann am gewählten _Datum_ zur gewünschten _Zeit_ erinnern.\nVerwende für das Datum die europäische Reihenfolge (dd.mm.yyyy), für die Uhrzeit die 24h-Uhr und setze deine Nachricht an Anführungszeichen.\nDie Reihenfolge der Argumente ist jedoch egal.",
+            "remindme -s | -show": "Erhalte eine Übersicht über alle anstehenden Reminder auf dem aktuellen Server.",
+            "remindme -d | -delete <nummer>": "Lösche den anstehenden Reminder mit einer bestimmten Nummer. Um die Nummer deines gesuchten Reminders zu erfahren, probier mal das {0.prefix}remindme -show Kommando aus. Du kannst aber logischerweise nur deine eigenen Reminder löschen.",
+            "timezone": "Lass dir deine derzeit gewählte Zeitzone anzeigen und ändere sie bei Bedarf."
+        }
     },
 
     "timestamp": {
