@@ -1,7 +1,6 @@
 import asyncio
 import datetime
 import traceback
-
 import asyncpg
 import random
 import discord as d
@@ -15,10 +14,8 @@ from fuzzywuzzy import fuzz, process
 from wrapper.msg_container import MsgContainer
 from wrapper.database_wrapper import DatabaseWrapper, Reminder
 from localization.quote_server import QuoteServer as Quotes
-from utils.time_handler import TimeHandler
-from utils.user_interaction_handler import UserInteractionHandler
-from exceptions.errors import *
-from exceptions.error_handler import ErrorHandler
+from utils import *
+from exceptions import *
 
 
 async def __startup():
@@ -429,18 +426,8 @@ class MyBot(d.Client):
 
     # returns an embed, listing all reminders that are currently in the database
     async def show_reminders(self, msg: MsgContainer) -> d.Embed | ReminderNotFoundException:
-        # check if command was sent in a server
-        if not msg.server:
-            # command was invoked in a private chat -> fetch all reminders for that user
-            next_reminders: List[Reminder] = await self.db.fetch_reminders(user=msg.user)
-        else:
-            # get a list of channel_ids for all channels on the message's server
-            channel_list = [str(channel.id) for channel in msg.server.text_channels]
-            # fetch a list of upcoming reminders on this server from the database
-            next_reminders: List[Reminder] = await self.db.fetch_reminders(channels=channel_list)
-
-        if not next_reminders:  # empty list -> no reminders found in the database
-            raise ReminderNotFoundException('There are no upcoming reminders at the moment', cause=Cause.EMPTY_DB)
+        # find all reminders which the user is supposed to see
+        next_reminders: List[Reminder] = await self.__find_local_reminders(msg, 20)
 
         # create an embed to neatly display the upcoming reminders
         reminder_embed = d.Embed(title=Quotes.get_quote('reminder/show/title').format(self), color=0x660000)
@@ -460,14 +447,16 @@ class MyBot(d.Client):
         if reminder_nr is None:
             raise InvalidArgumentsException("Couldn't find a number in the command arguments", arguments=msg.words, cause=Cause.NOT_A_NUMBER, goal=Goal.REMINDER_DEL)
 
-        # fetch all upcoming reminders from the database and choose the one at the given index
-        upcoming_reminders: List[Reminder] = await self.db.fetch_reminders()
+        # fetch the upcoming reminders (for the given guild/channel) from the database and choose the one at the given index
+        upcoming_reminders: List[Reminder] = await self.__find_local_reminders(msg, 20)
         if not upcoming_reminders:
             raise ReminderNotFoundException("There are no upcoming reminders at the moment", cause=Cause.EMPTY_DB)
-        if reminder_nr > len(upcoming_reminders):
-            raise IndexOutOfBoundsException(f"Index {reminder_nr-1} not in scope of available reminders (length: {len(upcoming_reminders)})",
-                                            index=reminder_nr-1, length=len(upcoming_reminders), collection=upcoming_reminders)
-        del_rem = upcoming_reminders[reminder_nr - 1]
+
+        reminder_index = reminder_nr - 1
+        if reminder_index >= len(upcoming_reminders) or reminder_index < 0:
+            raise IndexOutOfBoundsException(f"Index {reminder_index} not in scope of available reminders (length: {len(upcoming_reminders)})",
+                                            index=reminder_index, length=len(upcoming_reminders), collection=upcoming_reminders)
+        del_rem = upcoming_reminders[reminder_index]
 
         # check if the reminder belongs to the user that wants to delete it
         if del_rem.user_id != msg.user.id:
@@ -488,6 +477,24 @@ class MyBot(d.Client):
         return await msg.post(Quotes.get_quote('reminder/deletion/done').format(self))
 
 
+    # finds the next <limit> reminders which belong to either the current server or the asking user in case of a dm channel
+    async def __find_local_reminders(self, msg: MsgContainer, limit=20) -> List[Reminder]:
+        # check if command was sent in a server
+        if not msg.server:
+            # command was invoked in a private chat -> fetch all reminders for that user
+            local_reminders: List[Reminder] = await self.db.fetch_reminders(user=msg.user)
+        else:
+            # get a list of channel_ids for all channels on the message's server
+            channel_list = [str(channel.id) for channel in msg.server.text_channels]
+            # fetch a list of upcoming reminders on this server from the database
+            local_reminders: List[Reminder] = await self.db.fetch_reminders(channels=channel_list)
+
+        if not local_reminders:  # empty list -> no reminders found in the database
+            raise ReminderNotFoundException('There are no upcoming reminders at the moment', cause=Cause.EMPTY_DB)
+
+        return local_reminders
+
+
     @staticmethod
     def __find_first_number(words: list[str]) -> int | None:
         for word in words:
@@ -495,9 +502,6 @@ class MyBot(d.Client):
                 return int(word)
         return None
 
-
-    # reminders
-    # TODO: enable the use of relative time intervals (1 day, 2 hours, etc.) when setting a reminder
 
     # general improvements
     # TODO: make greeting dependant on current time?
